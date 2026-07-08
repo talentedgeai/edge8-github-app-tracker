@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db } from "./db.js";
 
 // Idempotent parsers: raw delivery -> structured tables.
 // Standard-SQL upserts (ON CONFLICT ...) run identically on SQLite and Postgres,

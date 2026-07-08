@@ -1,9 +1,9 @@
-import "./env";
+import "./env.js";
 import { pathToFileURL } from "node:url";
-import { db } from "./db";
-import { mintForDelivery } from "./mint";
-import { orphanSweep, pairRepoBranch } from "./pairing";
-import { toMs } from "./time";
+import { db } from "./db.js";
+import { mintForDelivery } from "./mint.js";
+import { orphanSweep, pairRepoBranch } from "./pairing.js";
+import { toMs } from "./time.js";
 
 // The mint-engine twin of reparse.ts (brief §8): clear work_spans + capture_flags and
 // re-run attribution -> mint -> pairing -> classification over ALL history in event

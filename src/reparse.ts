@@ -1,6 +1,6 @@
-import "./env";
-import { db } from "./db";
-import { parseDelivery } from "./parse";
+import "./env.js";
+import { db } from "./db.js";
+import { parseDelivery } from "./parse.js";
 
 // Re-run the parser over the whole raw log. Proves the capture-first invariant:
 // the parsed tables are recomputable from webhook_deliveries at any time.

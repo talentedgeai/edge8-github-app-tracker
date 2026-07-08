@@ -1,4 +1,4 @@
-import { handleWebhook } from "../../src/handlers";
+import { handleWebhook } from "../../src/handlers.js";
 
 // Vercel auto-parses JSON bodies, which would change the bytes GitHub signed —
 // disable it and read the raw stream ourselves (HMAC needs the exact bytes).

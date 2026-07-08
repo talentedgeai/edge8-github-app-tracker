@@ -1,7 +1,7 @@
-import { db } from "./db";
-import { toMs } from "./time";
-import { raiseFlag } from "./flags";
-import { classify } from "./classify";
+import { db } from "./db.js";
+import { toMs } from "./time.js";
+import { raiseFlag } from "./flags.js";
+import { classify } from "./classify.js";
 
 // Pairing (brief §6): attach spans to the PR they belong to.
 // PRs on a branch are ordered by CLOSE instant (an open PR sorts LAST) so a reused

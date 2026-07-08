@@ -1,6 +1,6 @@
 import { createAppAuth } from "@octokit/auth-app";
 import fs from "node:fs";
-import { db } from "./db";
+import { db } from "./db.js";
 
 // GitHub App auth. The private key comes from the GITHUB_APP_PRIVATE_KEY env var
 // (Vercel — the full PEM content, \n-escaped allowed) or PRIVATE_KEY_PATH (local file).

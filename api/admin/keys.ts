@@ -1,4 +1,4 @@
-import { handleAdminKeys } from "../../src/handlers";
+import { handleAdminKeys } from "../../src/handlers.js";
 
 // Admin key management over HTTP. Gated by the x-admin-token header (ADMIN_TOKEN).
 //   POST   {email}   -> create a key (returned once)

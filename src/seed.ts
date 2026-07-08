@@ -1,6 +1,6 @@
-import "./env";
+import "./env.js";
 import crypto from "node:crypto";
-import { db } from "./db";
+import { db } from "./db.js";
 
 // Seed one test engineer key (brief §8). The FULL secret is what you send in the
 // x-edge8-key header; we persist only its sha256 hash, never the secret itself.

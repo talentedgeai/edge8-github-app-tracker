@@ -1,8 +1,8 @@
-import { db } from "./db";
-import { HOURS_24, toMs, tokensFor } from "./time";
-import { raiseFlag } from "./flags";
-import { classify } from "./classify";
-import { choosePrForSpan, orphanSweep, pairRepoBranch } from "./pairing";
+import { db } from "./db.js";
+import { HOURS_24, toMs, tokensFor } from "./time.js";
+import { raiseFlag } from "./flags.js";
+import { classify } from "./classify.js";
+import { choosePrForSpan, orphanSweep, pairRepoBranch } from "./pairing.js";
 
 // The mint engine (brief §5). A pure module: reads ONLY the event tables
 // (git_access_events, push_events joined to webhook_deliveries), writes ONLY

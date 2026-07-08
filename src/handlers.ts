@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
-import { db } from "./db";
-import { parseDelivery } from "./parse";
-import { postPushCapture } from "./mint";
-import { onPullRequestWebhook } from "./pairing";
-import { installationForRepoPath, mintInstallationToken } from "./github";
+import { db } from "./db.js";
+import { parseDelivery } from "./parse.js";
+import { postPushCapture } from "./mint.js";
+import { onPullRequestWebhook } from "./pairing.js";
+import { installationForRepoPath, mintInstallationToken } from "./github.js";
 
 // Framework-agnostic request handlers — the local Express server (src/server.ts)
 // and the Vercel functions (api/*) both delegate here, so behaviour is identical.

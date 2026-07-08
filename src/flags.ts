@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db } from "./db.js";
 
 // Canonical JSON (sorted keys) so UNIQUE(kind, ref) really means
 // "the same condition never raises twice".

@@ -1,5 +1,5 @@
 import postgres from "postgres";
-import { clean, type Dbx } from "./dbx";
+import { clean, type Dbx } from "./dbx.js";
 
 // Production backend: Supabase Postgres via the transaction pooler (port 6543).
 // All tracker tables live in the dedicated schema "tracker" — the shared database
