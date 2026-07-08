@@ -94,6 +94,13 @@ async function logAccessEvent(
   body: any,
   kind: "token" | "beacon",
 ): Promise<void> {
+  // The token event is the clock-start: stamp it with SERVER time and never trust a
+  // client-supplied observed_at (which could backdate the span and inflate billing).
+  // Only the beacon (a cache-hit heartbeat) may carry the client's observed_at.
+  const observedAt =
+    kind === "beacon"
+      ? (body?.observed_at ?? new Date().toISOString())
+      : new Date().toISOString();
   await db.run(
     `INSERT INTO git_access_events (key_id, repo_path, verb, kind, observed_at, raw)
      VALUES (?,?,?,?,?,?)`,
@@ -101,7 +108,7 @@ async function logAccessEvent(
     body?.path ?? null,
     body?.verb ?? "unknown",
     kind,
-    body?.observed_at ?? new Date().toISOString(),
+    observedAt,
     JSON.stringify(body ?? {}),
   );
 }
