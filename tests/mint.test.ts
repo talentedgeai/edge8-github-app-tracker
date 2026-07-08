@@ -165,6 +165,16 @@ test("merge reconciliation: Bot merge-push minted before PR closed gets unminted
     pull_request: { id: 100, merged: true, merge_commit_sha: "MSHA", head: { ref: "feature-x" } },
   });
   assert.equal((await H.spans()).length, 0); // converged with what remint would produce
+
+  // ...and the mint-time flag (direct_push) must be cleared too, else live diverges from
+  // remint, which rebuilds capture_flags from scratch. Snapshot must match a fresh remint.
+  assert.ok(
+    !(await H.flagKinds()).includes("direct_push"),
+    "stray direct_push flag left behind after reconcile",
+  );
+  const live = await H.snapshot();
+  await remintAll();
+  assert.equal(await H.snapshot(), live); // live == remint: spans AND capture_flags
 });
 
 // §5.1 attribution — several keys in the window disambiguate via author_emails;

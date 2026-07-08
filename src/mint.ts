@@ -1,6 +1,6 @@
 import { db } from "./db.js";
 import { HOURS_24, toMs, tokensFor } from "./time.js";
-import { raiseFlag } from "./flags.js";
+import { clearFlagsForDelivery, raiseFlag } from "./flags.js";
 import { classify } from "./classify.js";
 import { choosePrForSpan, orphanSweep, pairRepoBranch } from "./pairing.js";
 
@@ -231,6 +231,10 @@ export async function mintForDelivery(deliveryId: string): Promise<void> {
   if (!push || push.repo_id == null) return;
   const pushMs = toMs(push.pushed_at);
   if (!Number.isFinite(pushMs)) return;
+
+  // Rebuild this delivery's flags from scratch on every mint so a re-mint OR the merge
+  // carve-out below converges with remint (which wipes capture_flags first). §8/§10.
+  await clearFlagsForDelivery(deliveryId);
 
   await ensureProject(push);
   const project = await getProject(push.repo_id);
