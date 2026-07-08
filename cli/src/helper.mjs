@@ -69,7 +69,12 @@ async function main() {
   const cache = readJson(CACHE) ?? {};
   const hit = cache[repoPath];
   if (hit && Date.parse(hit.expires_at) - Date.now() > REFRESH_MARGIN_MS) {
-    process.stdout.write(`username=x-access-token\npassword=${hit.token}\n`);
+    // password_expiry_utc tells git (2.34+) and GCM the token expires — so a stale
+    // cached credential is never reused (git re-invokes us instead).
+    const exp = Math.floor(Date.parse(hit.expires_at) / 1000);
+    process.stdout.write(
+      `username=x-access-token\npassword=${hit.token}\npassword_expiry_utc=${exp}\n`,
+    );
     try {
       await post(
         `${base}/beacon`,
@@ -100,7 +105,10 @@ async function main() {
     } catch {
       /* cache write is best-effort */
     }
-    process.stdout.write(`username=${j.username}\npassword=${j.token}\n`);
+    const exp = Math.floor(Date.parse(j.expires_at) / 1000);
+    process.stdout.write(
+      `username=${j.username}\npassword=${j.token}\npassword_expiry_utc=${exp}\n`,
+    );
   } catch {
     /* server unreachable -> silent fall-through */
   }

@@ -24,12 +24,12 @@ GitHub App (All repositories) ── webhooks ───────────�
 One-time per machine — no repo clone needed.
 
 ```bash
-# 1. Download the CLI from Releases (needs GitHub access to the talentedgeai org)
-gh release download v0.1.0 --repo talentedgeai/edge8-github-app-tracker --pattern "*.tgz"
+# 1. Download the latest CLI from Releases (needs GitHub access to the talentedgeai org)
+gh release download --repo talentedgeai/edge8-github-app-tracker --pattern "*.tgz"
 #    (or download the .tgz from the Releases page in a browser)
 
 # 2. Install globally
-npm i -g edge8-tracker-0.1.0.tgz
+npm i -g edge8-tracker-*.tgz
 
 # 3. Set up (ask an admin for your key)
 tracker setup --key e8k_xxxxxxxx_yyyy --server https://edge8-github-app-tracker.vercel.app
