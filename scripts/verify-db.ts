@@ -1,5 +1,5 @@
-import "../src/env";
-import { db } from "../src/db";
+import "../src/env.js";
+import { db } from "../src/db.js";
 
 // Prove the configured backend accepts writes into schema tracker.
 // Reads TRACKER_DB_URL from .env (never printed). Insert -> read -> delete a throwaway

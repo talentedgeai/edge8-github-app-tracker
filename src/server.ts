@@ -1,4 +1,4 @@
-import "./env"; // MUST be first — loads .env before anything reads process.env
+import "./env.js"; // MUST be first — loads .env before anything reads process.env
 import express from "express";
 import {
   handleAdminKeys,
@@ -6,8 +6,8 @@ import {
   handleBeacon,
   handleHealth,
   handleWebhook,
-} from "./handlers";
-import type { HandlerResult } from "./handlers";
+} from "./handlers.js";
+import type { HandlerResult } from "./handlers.js";
 
 // Local dev server. Production (Vercel) uses api/* functions — both delegate to
 // the same handlers in src/handlers.ts, so behaviour is identical.

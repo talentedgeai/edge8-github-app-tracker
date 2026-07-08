@@ -1,6 +1,6 @@
-import "../src/env";
+import "../src/env.js";
 import crypto from "node:crypto";
-import { db } from "../src/db";
+import { db } from "../src/db.js";
 
 // Admin: issue an engineer key. Runs against whichever backend the env selects
 // (TRACKER_DB_URL -> Supabase, else local SQLite).

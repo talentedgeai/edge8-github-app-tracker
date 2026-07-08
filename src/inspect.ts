@@ -1,5 +1,5 @@
-import "./env";
-import { db } from "./db";
+import "./env.js";
+import { db } from "./db.js";
 
 // Quick capture inspector — works on both backends. Run: npm run inspect
 console.log(`backend: ${db.kind}`);

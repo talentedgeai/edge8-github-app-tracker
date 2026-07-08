@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
-import { clean, type Dbx } from "./dbx";
+import { clean, type Dbx } from "./dbx.js";
 
 // Local backend: node:sqlite (Node >= 22.5; stable on 26). Used for dev + tests.
 
