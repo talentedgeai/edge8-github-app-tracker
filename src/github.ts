@@ -31,7 +31,7 @@ export async function installationForRepoPath(
   );
   if (proj) {
     const insts = await db.all(
-      `SELECT * FROM app_installations WHERE deleted_at IS NULL`,
+      `SELECT * FROM app_installations WHERE deleted_at IS NULL AND suspended_at IS NULL`,
     );
     const hit = insts.find((i) => {
       try {
@@ -45,7 +45,7 @@ export async function installationForRepoPath(
   return (
     (await db.get(
       `SELECT * FROM app_installations
-       WHERE lower(account_login) = ? AND deleted_at IS NULL
+       WHERE lower(account_login) = ? AND deleted_at IS NULL AND suspended_at IS NULL
        ORDER BY installation_id LIMIT 1`,
       owner,
     )) ?? null

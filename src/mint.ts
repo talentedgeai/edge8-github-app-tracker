@@ -187,8 +187,10 @@ async function priorBoundary(
   return fresh.length ? Math.min(...fresh) : null;
 }
 
-// Replay-safe upsert. UNIQUE(delivery_id, member) treats NULL members as distinct on
-// both backends, so delete-then-insert (null-safe compare) is the idempotent form.
+// Replay-safe upsert. At most one span exists per delivery, so clear EVERY row for this
+// delivery before inserting the freshly-recomputed one — a member-scoped delete would
+// orphan a prior row if re-attribution (e.g. an engineer key created after the push, then
+// a redelivery) later changes the member, silently leaving two spans for one push.
 async function upsertSpan(s: {
   delivery_id: string;
   member: string | null;
@@ -203,11 +205,7 @@ async function upsertSpan(s: {
   pull_request_id: number | null;
   flags: string[];
 }): Promise<void> {
-  await db.run(
-    `DELETE FROM work_spans WHERE delivery_id = ? AND member IS NOT DISTINCT FROM ?`,
-    s.delivery_id,
-    s.member,
-  );
+  await db.run(`DELETE FROM work_spans WHERE delivery_id = ?`, s.delivery_id);
   await db.run(
     `INSERT INTO work_spans
       (delivery_id, member, repo_id, branch, span_start, span_end, tokens, rule,

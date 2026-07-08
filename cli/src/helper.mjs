@@ -16,7 +16,10 @@ const DIR = path.join(os.homedir(), ".edge8");
 const CONFIG = path.join(DIR, "config.json");
 const CACHE = path.join(DIR, "cache.json");
 const REFRESH_MARGIN_MS = 2 * 60_000;
-const HTTP_TIMEOUT_MS = 4000;
+// Cold-start tolerant: a serverless /app-token can take >4s on a cold function. Too tight
+// a timeout aborts the mint, the helper prints nothing, and git silently falls through to
+// the platform manager (which has no credential for a tracked repo) — so keep this ample.
+const HTTP_TIMEOUT_MS = 10_000;
 
 const readJson = (p) => {
   try {
