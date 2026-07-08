@@ -1,6 +1,6 @@
 import { db } from "./db.js";
 import { toMs } from "./time.js";
-import { raiseFlag } from "./flags.js";
+import { clearFlagsForDelivery, raiseFlag } from "./flags.js";
 import { classify } from "./classify.js";
 
 // Pairing (brief §6): attach spans to the PR they belong to.
@@ -170,6 +170,9 @@ export async function onPullRequestWebhook(p: any): Promise<void> {
         `DELETE FROM work_spans WHERE delivery_id = ?`,
         row.delivery_id,
       );
+      // The carved-away span may have minted flags (e.g. direct_push) before the PR
+      // closed; clear them too, or live diverges from remint. §8/§10.
+      await clearFlagsForDelivery(row.delivery_id);
     }
   }
   await pairRepoBranch(repoId, pr.head?.ref ?? "");

@@ -21,3 +21,15 @@ export async function raiseFlag(
     stableStringify(ref),
   );
 }
+
+// Clear the mint-time flags raised for one delivery (unattributed_push, no_clock_start,
+// ambiguous_class, direct_push — all keyed with the delivery id in their ref). Called
+// when a delivery is re-minted or reconciled away (merge carve-out) so live capture_flags
+// converge with remint, which rebuilds every flag from scratch (§8/§10). PR-keyed flags
+// (orphaned_pr, missing_author_block) carry no "delivery" and are left untouched.
+export async function clearFlagsForDelivery(deliveryId: string): Promise<void> {
+  await db.run(
+    `DELETE FROM capture_flags WHERE ref LIKE ?`,
+    `%"delivery":${JSON.stringify(deliveryId)}%`,
+  );
+}
