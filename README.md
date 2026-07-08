@@ -170,15 +170,28 @@ GitHub App (All repositories) ── webhooks ───────────�
      ```
    The full `e8k_…` key is shown once — send it to the engineer privately.
 
-### Engineer setup (one-time, then forget it)
+### Engineer setup (one-time — no repo clone needed)
+Download the CLI tarball from **Releases**, install it globally, then run setup:
 ```bash
-npm i -g @edge8/tracker          # or: npm i -g <path/to/cli tarball>
-tracker setup --key e8k_xxxx_yyyy --server https://<app>.vercel.app
+gh release download v0.1.0 --repo talentedgeai/edge8-github-app-tracker --pattern "*.tgz"
+npm i -g edge8-tracker-0.1.0.tgz
+tracker setup --key e8k_xxxx_yyyy --server https://edge8-github-app-tracker.vercel.app
 ```
+(Or download the `.tgz` from the Releases page in a browser, then `npm i -g <file>.tgz`.)
+
 That wires git (global, github.com host-scoped, `useHttpPath` on): every pull/push on a
 tracked repo mints/reuses a 60-minute installation token — **auto-refreshed** because git
 invokes the helper on each operation; cache hits send a `/beacon` heartbeat. Untracked and
 personal repos fall through to the previous credential manager. `tracker uninstall` undoes it.
+
+### Cut a new CLI release (admin)
+```bash
+# bump "version" in cli/package.json, commit, then tag + push:
+git tag v0.2.0 && git push origin v0.2.0
+```
+The `release-cli` GitHub Action (`.github/workflows/release-cli.yml`) packs `cli/` and
+attaches the tarball to the release automatically — engineers then `gh release download`
+the new version. To build the tarball locally instead: `cd cli && npm pack`.
 
 ### Pieces
 | Piece | Where |

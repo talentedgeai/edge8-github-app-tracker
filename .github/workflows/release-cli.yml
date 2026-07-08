@@ -1,0 +1,30 @@
+name: release-cli
+
+# Push a tag like v0.2.0 -> pack cli/ and attach the tarball to a GitHub Release,
+# so engineers install the CLI from Releases without cloning the repo.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Pack the CLI
+        run: cd cli && npm pack
+      - name: Create/attach release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" cli/edge8-tracker-*.tgz \
+            --title "edge8-tracker CLI $GITHUB_REF_NAME" \
+            --notes "CLI tarball. Install: \`npm i -g edge8-tracker-*.tgz\` then \`tracker setup --key <key> --server https://edge8-github-app-tracker.vercel.app\`" \
+          || gh release upload "$GITHUB_REF_NAME" cli/edge8-tracker-*.tgz --clobber
