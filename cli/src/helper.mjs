@@ -8,9 +8,11 @@
 //     expiry — auto-refresh needs no daemon because git calls us on every operation.
 //   - Cache hits still send a /beacon heartbeat: that is the capture signal that
 //     work is happening even when no new token is minted.
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const DIR = path.join(os.homedir(), ".edge8");
 const CONFIG = path.join(DIR, "config.json");
@@ -20,6 +22,10 @@ const REFRESH_MARGIN_MS = 2 * 60_000;
 // a timeout aborts the mint, the helper prints nothing, and git silently falls through to
 // the platform manager (which has no credential for a tracked repo) — so keep this ample.
 const HTTP_TIMEOUT_MS = 10_000;
+// The beacon is fire-and-forget from a detached child, so it can use a generous timeout
+// without ever blocking git — a cold serverless function no longer drops the heartbeat.
+const BEACON_TIMEOUT_MS = 8_000;
+const SELF = fileURLToPath(import.meta.url);
 
 const readJson = (p) => {
   try {
@@ -55,8 +61,28 @@ async function post(url, headers, body, timeoutMs = HTTP_TIMEOUT_MS) {
   });
 }
 
+// Detached heartbeat: run as `helper.mjs beacon <repoPath>`. Spawned by the cache-hit
+// branch so the beacon never blocks git and survives a cold serverless function.
+async function sendBeacon(repoPath) {
+  if (!repoPath || repoPath === ".git") return;
+  const cfg = readJson(CONFIG);
+  if (!cfg?.server || !cfg?.key) return;
+  const base = cfg.server.replace(/\/+$/, "") + (cfg.apiPrefix ?? "");
+  try {
+    await post(
+      `${base}/beacon`,
+      { "x-edge8-key": cfg.key },
+      { host: "github.com", path: repoPath, verb: "unknown" },
+      BEACON_TIMEOUT_MS,
+    );
+  } catch {
+    /* best-effort */
+  }
+}
+
 async function main() {
   const action = process.argv[2];
+  if (action === "beacon") return sendBeacon(process.argv[3] ?? "");
   if (action !== "get") return; // store/erase: no-op
 
   const input = parseInput(readStdin());
@@ -78,15 +104,16 @@ async function main() {
     process.stdout.write(
       `username=x-access-token\npassword=${hit.token}\npassword_expiry_utc=${exp}\n`,
     );
+    // Fire-and-forget: beacon from a DETACHED child that outlives this process. git waits
+    // for THIS helper to exit, so an inline beacon would either block git or be killed by
+    // a short timeout on a cold function; the detached child beacons independently.
     try {
-      await post(
-        `${base}/beacon`,
-        { "x-edge8-key": cfg.key },
-        { host: "github.com", path: repoPath, verb: "unknown" },
-        1500,
-      );
+      spawn(process.execPath, [SELF, "beacon", repoPath], {
+        detached: true,
+        stdio: "ignore",
+      }).unref();
     } catch {
-      /* heartbeat is best-effort */
+      /* best-effort */
     }
     return;
   }
