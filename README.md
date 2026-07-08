@@ -43,16 +43,19 @@ A fallback credential manager for personal/untracked repos is optional and usual
 (Windows: Git Credential Manager · macOS: `osxkeychain` · Linux: `cache`) — `tracker setup` wires the
 right one for your OS automatically.
 
+The three commands below are **identical on Windows (CMD/PowerShell), macOS, and Linux** —
+`-O tracker.tgz` writes the download to a fixed name so there is no shell glob to expand
+(`*.tgz` is not expanded by Windows CMD/PowerShell).
+
 ```bash
-# 1. Download the latest CLI from Releases (needs GitHub access to the talentedgeai org)
-gh release download --repo talentedgeai/edge8-github-app-tracker --pattern "*.tgz"
-#    (or download the .tgz from the Releases page in a browser)
+# 1. Download the latest CLI from Releases (needs GitHub access to the talentedgeai org).
+gh release download --repo talentedgeai/edge8-github-app-tracker --pattern "*.tgz" -O tracker.tgz
+#    (no gh? download the .tgz from the Releases page in a browser and rename it tracker.tgz)
 
-# 2. Install globally — name the file explicitly (Windows CMD/PowerShell don't expand *)
-npm i -g ./edge8-tracker-0.2.0.tgz
-#    (macOS/Linux shells may use the glob instead: npm i -g edge8-tracker-*.tgz)
+# 2. Install globally.
+npm i -g ./tracker.tgz
 
-# 3. Set up (ask an admin for your key)
+# 3. Set up (ask an admin for your key).
 tracker setup --key e8k_xxxxxxxx_yyyy --server https://edge8-github-app-tracker.vercel.app
 ```
 
@@ -186,11 +189,12 @@ deny-all; touches nothing in `public`). Use the transaction-pooler string (port 
 
 ### Cut a new CLI release
 ```bash
-# bump "version" in cli/package.json, commit, then:
-git tag v0.2.0 && git push origin v0.2.0
+# bump "version" in cli/package.json, commit, then tag that version (e.g. v0.2.2):
+git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 The `release-cli` GitHub Action (`.github/workflows/release-cli.yml`) packs `cli/` and attaches
-the tarball to the Release automatically. Engineers then `gh release download v0.2.0`.
+the tarball to the Release automatically. Engineers always fetch the **latest** release with the
+version-agnostic command in [Engineer setup](#engineer-setup), so keep only the newest release.
 (Local build: `cd cli && npm pack`.)
 
 ---
