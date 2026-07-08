@@ -23,13 +23,34 @@ GitHub App (All repositories) ── webhooks ───────────�
 ## Engineer setup
 One-time per machine — no repo clone needed.
 
+### Prerequisites (engineer machine)
+Works on **Windows, macOS, and Linux**. Before running `tracker setup`, install:
+
+| Requirement | Why | Check |
+|---|---|---|
+| **Node.js ≥ 18** (LTS 20+ recommended) | The CLI and credential helper run on Node (uses global `fetch`) | `node -v` — get it at <https://nodejs.org> |
+| **npm** (bundled with Node) | Installs the CLI globally (`npm i -g`) | `npm -v` |
+| **Git ≥ 2.34** | The tracker plugs into git's credential system; 2.34+ honors `password_expiry_utc` so stale tokens aren't reused | `git --version` |
+| **An engineer key** (`e8k_…`) | The **only** credential you need — ask an admin. Your key mints the token that clones/pulls/pushes tracked repos | — |
+| **The CLI tarball** (`.tgz`) | Get it from an admin, or the Releases page. `gh release download` needs a GitHub login **only if the repo is private** — otherwise just grab the file | `gh --version` *(if using gh)* |
+
+> **You do _not_ need your personal GitHub account to have access to the tracked repos.** Your `e8k_` key
+> mints a short-lived **installation token** (from the GitHub App) that already carries the repo access, and
+> the credential helper uses it for clone/pull/push — a machine with no GitHub login can still clone a
+> private tracked repo. A personal GitHub login only matters for your own untracked/personal repos.
+
+A fallback credential manager for personal/untracked repos is optional and usually ships with git
+(Windows: Git Credential Manager · macOS: `osxkeychain` · Linux: `cache`) — `tracker setup` wires the
+right one for your OS automatically.
+
 ```bash
 # 1. Download the latest CLI from Releases (needs GitHub access to the talentedgeai org)
 gh release download --repo talentedgeai/edge8-github-app-tracker --pattern "*.tgz"
 #    (or download the .tgz from the Releases page in a browser)
 
-# 2. Install globally
-npm i -g edge8-tracker-*.tgz
+# 2. Install globally — name the file explicitly (Windows CMD/PowerShell don't expand *)
+npm i -g ./edge8-tracker-0.2.0.tgz
+#    (macOS/Linux shells may use the glob instead: npm i -g edge8-tracker-*.tgz)
 
 # 3. Set up (ask an admin for your key)
 tracker setup --key e8k_xxxxxxxx_yyyy --server https://edge8-github-app-tracker.vercel.app
@@ -71,6 +92,7 @@ Header `x-edge8-key: e8k_<id>_<secret>`
 
 // 401 {"error":"bad key"}        — key unknown/revoked/wrong secret
 // 404 {"error":"no installation for repo"}  — App not installed on that repo (helper stays silent)
+// 503 {"error":"mint failed","detail":"..."} — token mint failed (App misconfigured; helper falls through)
 ```
 
 ### `POST /api/beacon`
