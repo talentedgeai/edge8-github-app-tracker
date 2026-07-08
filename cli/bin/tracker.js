@@ -88,7 +88,11 @@ async function setup() {
   //    credential manager can't answer with a stored PAT before our helper runs
   //  - our helper goes first; the platform manager is re-added as the fallback for
   //    personal/untracked repos (our helper prints nothing for those)
-  const helperCmd = `!node "${HELPER_DEST.replace(/\\/g, "/")}"`;
+  // Pin the ABSOLUTE node path, not a bare `node`: git runs helpers through its own shell
+  // whose PATH may differ from this one (Windows/GUI git clients), and a missing/old node
+  // would make the helper fail silently. process.execPath is the node running this setup.
+  const nodePath = process.execPath.replace(/\\/g, "/");
+  const helperCmd = `!"${nodePath}" "${HELPER_DEST.replace(/\\/g, "/")}"`;
   git("config", "--global", "credential.https://github.com.useHttpPath", "true");
   try {
     git("config", "--global", "--unset-all", "credential.https://github.com.helper");
