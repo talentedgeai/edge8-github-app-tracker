@@ -153,10 +153,22 @@ Header `x-admin-token`
 | `TRACKER_DB_URL` | Supabase **transaction pooler** URI (port **6543**) |
 | `ADMIN_TOKEN` | secret guarding `/api/admin/keys` |
 
-> ⚠️ **Security:** `ADMIN_TOKEN` is a live secret — anyone who has it can mint keys. Keep it
-> only in the Vercel env and a password manager, never in git. The commands below read it from
-> an `ADMIN_TOKEN` variable set in your shell (`export ADMIN_TOKEN=...` /
-> `$env:ADMIN_TOKEN = "..."`).
+> ⚠️ **Security warning — live secret below.** `ADMIN_TOKEN` guards `/api/admin/keys`: anyone
+> holding it can mint engineer keys that reach **every tracked repo in every covered org**.
+> It is recorded here because admins need it to run this runbook, and this repo is private —
+> but treat it accordingly:
+>
+> - **Never** share it outside the admin group, paste it into chat tools, or use it in client code.
+> - If it leaks (or an admin leaves): **rotate immediately** — set a new value in Vercel env →
+>   redeploy → update this line and the local `.env`.
+> - **Remove this value from the file before the repo is ever made public or shared externally.**
+>
+> ```
+> ADMIN_TOKEN = DhzMI2qGCa
+> ```
+>
+> The commands below read it from a shell variable: `export ADMIN_TOKEN=...` (bash) /
+> `$env:ADMIN_TOKEN = "..."` (PowerShell).
 
 ### Issue a key (for a new engineer)
 ```bash
@@ -178,6 +190,13 @@ curl -X DELETE https://edge8-github-app-tracker-kappa.vercel.app/api/admin/keys 
 - **Permissions:** Contents R/W, Pull requests R/W, Metadata R
 - **Events:** push, pull_request, pull_request_review, create, delete, repository, member, label, release
 - **Install:** on the org/user with **All repositories** — new repos are tracked automatically.
+- **Repos under other owners:** the App is public — install it once per owner from
+  <https://github.com/apps/edge8-github-app-tracker> (choose the target org/user, then All
+  repositories). Org members who are **not** owners get a **Request** button instead: GitHub
+  emails the org owners and nothing activates until an owner approves (Org Settings →
+  Third-party Access → GitHub Apps). Personal accounts: only the account owner can install.
+  Once accepted, the `installation` webhook registers it automatically and **existing engineer
+  keys work on the new repos immediately**.
 
 ### Supabase
 Apply `supabase/migrations/0001_tracker.sql` (creates schema `tracker` + 10 tables + RLS
