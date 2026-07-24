@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Edge8 Tracker — Setup Guide</title>
+<style>
+  :root {
+    --ink: #1a2332;
+    --muted: #5a6779;
+    --accent: #0f62fe;
+    --accent-soft: #eaf1ff;
+    --ok: #0e8345;
+    --warn: #b45309;
+    --card: #ffffff;
+    --bg: #f4f6fa;
+    --border: #dde3ec;
+    --code-bg: #101827;
+    --code-ink: #e6edf7;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.6;
+    padding: 2.5rem 1rem 5rem;
+  }
+  .wrap { max-width: 780px; margin: 0 auto; }
+  header { margin-bottom: 2rem; }
+  .kicker {
+    display: inline-block; background: var(--accent-soft); color: var(--accent);
+    font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+    padding: .25rem .7rem; border-radius: 99px; margin-bottom: .8rem;
+  }
+  h1 { font-size: 1.9rem; line-height: 1.25; margin-bottom: .5rem; }
+  .sub { color: var(--muted); font-size: 1.05rem; max-width: 60ch; }
+  h2 { font-size: 1.3rem; margin: 2.4rem 0 .8rem; }
+  h3 { font-size: 1.05rem; margin: 1.2rem 0 .4rem; }
+  p { margin-bottom: .8rem; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 1.3rem 1.5rem; margin-bottom: 1rem;
+  }
+  .step { display: flex; gap: 1rem; align-items: flex-start; }
+  .step-num {
+    flex: 0 0 auto; width: 2rem; height: 2rem; border-radius: 50%;
+    background: var(--accent); color: #fff; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; margin-top: .15rem;
+  }
+  .step-body { flex: 1; min-width: 0; }
+  .step-body h3 { margin-top: 0; }
+  pre {
+    background: var(--code-bg); color: var(--code-ink); border-radius: 8px;
+    padding: .85rem 1rem; overflow-x: auto; font-size: .88rem; line-height: 1.55;
+    margin: .6rem 0 .8rem;
+  }
+  code { font-family: ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, Menlo, monospace; }
+  p code, li code, td code {
+    background: #eef1f6; border: 1px solid var(--border); border-radius: 4px;
+    padding: .08em .35em; font-size: .88em; white-space: nowrap;
+  }
+  .tip, .warn-box {
+    border-left: 4px solid var(--ok); background: #f0faf4; border-radius: 0 8px 8px 0;
+    padding: .7rem 1rem; margin: .8rem 0; font-size: .95rem;
+  }
+  .warn-box { border-left-color: var(--warn); background: #fdf6ec; }
+  .expect { color: var(--ok); font-size: .9rem; margin-top: -.4rem; margin-bottom: .8rem; }
+  table { width: 100%; border-collapse: collapse; margin: .8rem 0; font-size: .93rem; }
+  th, td { text-align: left; padding: .55rem .7rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: #eef1f6; font-size: .85rem; letter-spacing: .03em; }
+  ul, ol { margin: 0 0 .8rem 1.3rem; }
+  li { margin-bottom: .3rem; }
+  a { color: var(--accent); }
+  .checklist { list-style: none; margin-left: 0; }
+  .checklist li { padding-left: 1.7rem; position: relative; }
+  .checklist li::before { content: "☐"; position: absolute; left: .2rem; color: var(--accent); font-size: 1.1rem; }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: .85rem; text-align: center; }
+  .pill-ok { color: var(--ok); font-weight: 600; }
+  .role-badge {
+    display: inline-block; font-size: .7rem; font-weight: 800; letter-spacing: .07em;
+    text-transform: uppercase; padding: .18rem .6rem; border-radius: 99px;
+    vertical-align: middle; margin-left: .4rem;
+  }
+  .role-admin { background: #fdf0e0; color: #b45309; border: 1px solid #ecc894; }
+  .role-eng { background: var(--accent-soft); color: var(--accent); border: 1px solid #bcd2ff; }
+  .flow { display: flex; gap: .8rem; flex-wrap: wrap; align-items: stretch; margin: .8rem 0 .4rem; }
+  .flow-col {
+    flex: 1 1 250px; border: 1px solid var(--border); border-radius: 10px;
+    padding: .9rem 1.1rem; background: #fbfcfe;
+  }
+  .flow-col.admin { border-top: 3px solid #d97706; }
+  .flow-col.eng { border-top: 3px solid var(--accent); }
+  .flow-col h4 { font-size: .95rem; margin-bottom: .3rem; }
+  .flow-col ol { margin: .3rem 0 0 1.2rem; font-size: .93rem; }
+  .flow-arrow { align-self: center; font-size: 1.5rem; color: var(--muted); padding: 0 .1rem; }
+  .admin-card { border-left: 4px solid #d97706; }
+  .step-num.admin-num { background: #d97706; }
+  @media (max-width: 560px) {
+    body { padding: 1.2rem .8rem 3rem; }
+    h1 { font-size: 1.5rem; }
+    .step { flex-direction: column; gap: .5rem; }
+    .flow-arrow { transform: rotate(90deg); margin: 0 auto; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="kicker">Edge8 · One-time setup · ~15 minutes</span>
+  <h1>Set up the Edge8 Work Tracker on your computer</h1>
+  <p class="sub">
+    This guide assumes <strong>zero technical background</strong>. You'll copy and paste a few
+    commands, and at the end your computer will automatically connect to Edge8's code
+    repositories — no passwords, no GitHub account needed.
+  </p>
+</header>
+
+<div class="card">
+  <h3>What is this, in one paragraph?</h3>
+  <p>
+    Edge8 tracks engineering work directly from <em>git</em> — the tool developers use to save and
+    share code. You'll install a small helper called the <strong>tracker</strong>. After that,
+    whenever you download or upload code for an Edge8 project, the tracker quietly logs that
+    activity and grants you access automatically. It does <strong>not</strong> watch your screen,
+    record keystrokes, or touch your personal files — it only sees git activity on company repositories.
+  </p>
+</div>
+
+<div class="card">
+  <h3>How the whole flow runs — two roles</h3>
+  <div class="flow">
+    <div class="flow-col admin">
+      <h4>🔑 Admin <span class="role-badge role-admin">once per engineer</span></h4>
+      <ol>
+        <li>Creates an <strong>engineer key</strong> (<code>e8k_…</code>) — see <a href="#part-a">Part A</a></li>
+        <li>Downloads the latest <code>tracker.tgz</code> installer</li>
+        <li>Sends both <strong>privately</strong> to the engineer</li>
+      </ol>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-col eng">
+      <h4>💻 Engineer <span class="role-badge role-eng">once per machine</span></h4>
+      <ol>
+        <li>Installs Node.js + Git — see <a href="#part-b">Part B</a></li>
+        <li>Installs the tracker (<code>npm i -g</code>)</li>
+        <li>Activates it with the key (<code>tracker setup</code>)</li>
+        <li>Works normally — git access &amp; tracking are automatic</li>
+      </ol>
+    </div>
+  </div>
+  <p style="margin-bottom:0; font-size:.93rem; color:var(--muted)">
+    Behind the scenes: on every <code>git clone/pull/push</code> of a tracked repository, the engineer's
+    key mints a fresh 60-minute access token from the tracker server and the activity is logged.
+    No passwords, no personal GitHub account involved.
+  </p>
+</div>
+
+<hr class="divider">
+
+<h2 id="part-a">Part A — Admin: create &amp; send the key <span class="role-badge role-admin">Admin</span></h2>
+<p>Already received your <code>e8k_…</code> key and <code>tracker.tgz</code>? You're the engineer — skip to <a href="#part-b">Part B</a>.</p>
+
+<div class="card admin-card">
+  <div class="step">
+    <div class="step-num admin-num">1</div>
+    <div class="step-body">
+      <h3>What you need: the admin token</h3>
+      <p>Key creation is guarded by the <code>ADMIN_TOKEN</code> — a live secret stored in
+         <strong>Vercel → project <code>edge8-github-app-tracker</code> → Settings → Environment Variables</strong>.
+         Ask the project owner if you don't have access.</p>
+      <div class="warn-box">⚠️ Anyone holding this token can mint keys for the whole org. Never share it,
+      never paste it into chat tools, never commit it anywhere.</div>
+    </div>
+  </div>
+</div>
+
+<div class="card admin-card">
+  <div class="step">
+    <div class="step-num admin-num">2</div>
+    <div class="step-body">
+      <h3>Create the engineer's key</h3>
+      <p>Replace <code>YOUR_ADMIN_TOKEN</code> and the engineer's email, then run in a terminal:</p>
+      <p><strong>Mac / Linux:</strong></p>
+      <pre><code>curl -X POST https://edge8-github-app-tracker-kappa.vercel.app/api/admin/keys \
+  -H "x-admin-token: YOUR_ADMIN_TOKEN" -H "content-type: application/json" \
+  -d '{"email":"engineer@edge8.ai"}'</code></pre>
+      <p><strong>Windows (PowerShell):</strong></p>
+      <pre><code>Invoke-RestMethod -Method Post -Uri "https://edge8-github-app-tracker-kappa.vercel.app/api/admin/keys" `
+  -Headers @{ "x-admin-token" = "YOUR_ADMIN_TOKEN" } `
+  -ContentType "application/json" -Body '{"email":"engineer@edge8.ai"}'</code></pre>
+      <p class="expect">✔ The response contains a <code>"key"</code> field: <code>e8k_xxxxxxxx_yyyy…</code></p>
+      <div class="warn-box">⚠️ <strong>The full key is shown exactly once</strong> — only its hash is stored on the
+      server. Copy it now; if it's lost, revoke it and create a new one.</div>
+    </div>
+  </div>
+</div>
+
+<div class="card admin-card">
+  <div class="step">
+    <div class="step-num admin-num">3</div>
+    <div class="step-body">
+      <h3>Send the engineer their starter pack — privately</h3>
+      <p>Via a private channel (DM, password manager share — not a group chat), send:</p>
+      <ul>
+        <li>The <strong>key</strong> from step 2</li>
+        <li>The <strong><code>tracker.tgz</code></strong> installer — download the latest from the
+            <a href="https://github.com/talentedgeai/edge8-github-app-tracker/releases">Releases page</a>,
+            or with the GitHub CLI:</li>
+      </ul>
+      <pre><code>gh release download --repo talentedgeai/edge8-github-app-tracker --pattern "*.tgz" -O tracker.tgz</code></pre>
+      <ul>
+        <li>This guide, and the name of the <strong>repo they'll work on</strong> (for their final check)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="card admin-card">
+  <h3>Managing keys later (list / revoke)</h3>
+  <p><strong>List all keys</strong> (no secrets shown):</p>
+  <pre><code># Mac/Linux
+curl https://edge8-github-app-tracker-kappa.vercel.app/api/admin/keys -H "x-admin-token: YOUR_ADMIN_TOKEN"
+
+# Windows PowerShell
+Invoke-RestMethod -Uri "https://edge8-github-app-tracker-kappa.vercel.app/api/admin/keys" -Headers @{ "x-admin-token" = "YOUR_ADMIN_TOKEN" }</code></pre>
+  <p><strong>Revoke a key</strong> (e.g. an engineer leaves — takes effect immediately):</p>
+  <pre><code># Mac/Linux
+curl -X DELETE https://edge8-github-app-tracker-kappa.vercel.app/api/admin/keys \
+  -H "x-admin-token: YOUR_ADMIN_TOKEN" -H "content-type: application/json" \
+  -d '{"key_id":"e8k_xxxxxxxx"}'
+
+# Windows PowerShell
+Invoke-RestMethod -Method Delete -Uri "https://edge8-github-app-tracker-kappa.vercel.app/api/admin/keys" `
+  -Headers @{ "x-admin-token" = "YOUR_ADMIN_TOKEN" } `
+  -ContentType "application/json" -Body '{"key_id":"e8k_xxxxxxxx"}'</code></pre>
+  <p style="margin-bottom:0">The <code>key_id</code> is the short prefix (first two segments) of the engineer's key — visible in the list command above.</p>
+</div>
+
+<hr class="divider">
+
+<h2 id="part-b">Part B — Engineer: set up your machine <span class="role-badge role-eng">Engineer</span></h2>
+
+<div class="card">
+  <h3>Before you start, you need these two things from your admin</h3>
+  <ul class="checklist">
+    <li>Your personal <strong>engineer key</strong> — a code that starts with <code>e8k_</code>
+        (e.g. <code>e8k_1a2b3c4d_5e6f…</code>). Ask your admin; they'll send it to you privately.</li>
+    <li>The <strong>tracker installer file</strong> — a file named <code>tracker.tgz</code>.
+        Ask your admin to send it, and save it into your <strong>Downloads</strong> folder.</li>
+  </ul>
+  <div class="tip">
+    💬 Not sure who to ask? Message: <em>"Hi! I'm setting up the Edge8 tracker. Could you send me
+    my engineer key and the tracker.tgz installer? My work email is ____."</em>
+    &nbsp;(Admins: <a href="#part-a">Part A</a> above shows how to create these.)
+  </div>
+</div>
+
+<h2>B1 — Open a terminal</h2>
+<p>A <strong>terminal</strong> is a window where you type commands instead of clicking. You'll paste commands into it.</p>
+<div class="card">
+  <table>
+    <tr><th>Your computer</th><th>How to open it</th></tr>
+    <tr><td><strong>Windows</strong></td><td>Press the <strong>Start</strong> button, type <code>powershell</code>, press <strong>Enter</strong>.</td></tr>
+    <tr><td><strong>Mac</strong></td><td>Press <strong>Cmd + Space</strong>, type <code>terminal</code>, press <strong>Enter</strong>.</td></tr>
+  </table>
+  <p style="margin-bottom:0">To run a command: <strong>copy it, paste it into the terminal, press Enter</strong>, and wait for it to finish (a new blinking line appears).</p>
+</div>
+
+<h2>B2 — Install the two free tools the tracker needs</h2>
+
+<div class="card">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <h3>Install Node.js (the engine the tracker runs on)</h3>
+      <p>Go to <a href="https://nodejs.org">nodejs.org</a>, download the <strong>LTS</strong> version,
+         and run the installer. Click <em>Next</em> through every screen — the defaults are fine.</p>
+      <p>Then <strong>close and reopen your terminal</strong>, and check it worked:</p>
+      <pre><code>node -v</code></pre>
+      <p class="expect">✔ You should see a version number like <code>v20.11.0</code> (anything 18 or higher is fine).</p>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <h3>Install Git (the tool that talks to code repositories)</h3>
+      <p><strong>Windows:</strong> download from <a href="https://git-scm.com/download/win">git-scm.com</a>
+         and run the installer — defaults are fine.<br>
+         <strong>Mac:</strong> just run the check below; if Git is missing, your Mac will offer to install it — click <em>Install</em>.</p>
+      <p>Check (reopen the terminal first if you just installed):</p>
+      <pre><code>git --version</code></pre>
+      <p class="expect">✔ You should see something like <code>git version 2.45.0</code> (2.34 or higher is fine).</p>
+    </div>
+  </div>
+</div>
+
+<h2>B3 — Install and activate the tracker</h2>
+
+<div class="card">
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <h3>Install the tracker</h3>
+      <p>Make sure <code>tracker.tgz</code> (from your admin) is in your <strong>Downloads</strong> folder. In the terminal, run these two commands one at a time:</p>
+      <pre><code>cd Downloads
+npm i -g ./tracker.tgz</code></pre>
+      <p class="expect">✔ After ~10 seconds it prints a line like <code>added 1 package</code>. Warnings in yellow are OK.</p>
+      <div class="warn-box">⚠️ <strong>Mac only:</strong> if you see an error containing <code>EACCES</code> or <code>permission denied</code>, run
+      <code>sudo npm i -g ./tracker.tgz</code> instead and type your Mac login password when asked (it won't show as you type — that's normal).</div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <h3>Activate it with your key</h3>
+      <p>Copy the command below <strong>into a notes app first</strong>, replace
+         <code>PASTE_YOUR_KEY_HERE</code> with the <code>e8k_…</code> key your admin sent you, then paste the whole line into the terminal:</p>
+      <pre><code>tracker setup --key PASTE_YOUR_KEY_HERE --server https://edge8-github-app-tracker-kappa.vercel.app</code></pre>
+      <p class="expect">✔ It should print: <code>tracker: setup complete ✔</code></p>
+      <p>That's it — the setup checks your key with the server, so if it says <span class="pill-ok">complete ✔</span>, everything works.</p>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="step">
+    <div class="step-num">5</div>
+    <div class="step-body">
+      <h3>Prove it works (optional but satisfying)</h3>
+      <p>Ask your admin which repository you'll be working on, then run (replace <code>REPO-NAME</code>):</p>
+      <pre><code>git clone https://github.com/talentedgeai/REPO-NAME.git</code></pre>
+      <p class="expect">✔ The project downloads into a folder — <strong>without asking you for any username or password</strong>. That silence is the tracker doing its job.</p>
+      <div class="warn-box">⚠️ If a login window pops up asking for a GitHub password, something's off — see Troubleshooting below.</div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<h2>😵 Something went wrong?</h2>
+<div class="card">
+  <table>
+    <tr><th>What you see</th><th>What it means &amp; the fix</th></tr>
+    <tr>
+      <td><code>'node' is not recognized</code> or <code>command not found: node</code></td>
+      <td>Node.js isn't installed yet, or the terminal was opened before you installed it. Install from <a href="https://nodejs.org">nodejs.org</a>, then <strong>close and reopen the terminal</strong>.</td>
+    </tr>
+    <tr>
+      <td><code>'tracker' is not recognized</code></td>
+      <td>Close and reopen the terminal — it needs a restart to notice newly installed commands. If it persists, redo Step 3.</td>
+    </tr>
+    <tr>
+      <td><code>ENOENT … tracker.tgz</code></td>
+      <td>The terminal can't find the installer file. Make sure <code>tracker.tgz</code> is in your Downloads folder and you ran <code>cd Downloads</code> first.</td>
+    </tr>
+    <tr>
+      <td><code>key rejected by the server (401)</code></td>
+      <td>The key was mistyped or has been revoked. Re-copy the <em>entire</em> key from your admin's message (it's long!) and run Step 4 again. Still failing? Ask your admin for a fresh key.</td>
+    </tr>
+    <tr>
+      <td>Git asks for a username/password when cloning</td>
+      <td>Either setup didn't finish (redo Step 4) or that repository isn't tracked by Edge8 yet — tell your admin which repo you tried.</td>
+    </tr>
+    <tr>
+      <td><span class="role-badge role-admin">Admin</span> <code>{"error":"unauthorized"}</code></td>
+      <td>The <code>x-admin-token</code> header is wrong or missing — re-copy <code>ADMIN_TOKEN</code> from the Vercel environment variables.</td>
+    </tr>
+    <tr>
+      <td><span class="role-badge role-admin">Admin</span> <code>{"error":"email required"}</code></td>
+      <td>The request body is malformed or the email is missing/invalid — check the JSON in <code>-d</code> / <code>-Body</code>.</td>
+    </tr>
+    <tr>
+      <td>Anything else</td>
+      <td>Take a screenshot of the whole terminal window and send it to your admin — that's genuinely the fastest fix.</td>
+    </tr>
+  </table>
+</div>
+
+<h2>🤖 Prefer to have AI do all of this for you?</h2>
+<div class="card">
+  <p>If you have <strong>Claude Code</strong> (Edge8's AI coding assistant) on your machine, you can skip every step above — it handles <strong>both roles</strong>:</p>
+  <ol>
+    <li>Get the <code>CLAUDE-SETUP.md</code> file and save it in a new empty folder
+        (engineers: put <code>tracker.tgz</code> in the same folder).</li>
+    <li>Open a terminal <em>in that folder</em>, type <code>claude</code>, press Enter.</li>
+    <li><span class="role-badge role-eng">Engineer</span> tell it: <em>"Read CLAUDE-SETUP.md and follow it to set up the tracker. My key is e8k_…"</em><br>
+        <span class="role-badge role-admin">Admin</span> tell it: <em>"Read CLAUDE-SETUP.md — I'm an admin, create a key for engineer@edge8.ai"</em> (have your <code>ADMIN_TOKEN</code> ready).</li>
+  </ol>
+  <p style="margin-bottom:0">Claude will check the machine, run the right flow for your role, verify the result, and tell you when it's done.</p>
+</div>
+
+<h2>❓ Quick answers</h2>
+<div class="card">
+  <p><strong>Does it spy on me?</strong> No. It only logs git activity (downloads/uploads of code) on Edge8-tracked repositories. No screen recording, no keystrokes, no personal files, and your personal projects are untouched.</p>
+  <p><strong>Do I need a GitHub account?</strong> No. Your <code>e8k_</code> key grants access to Edge8 repositories all by itself.</p>
+  <p><strong>Will it slow anything down?</strong> No — access tokens are cached for 60 minutes and refreshed automatically in the background.</p>
+  <p><strong>New laptop?</strong> Just repeat this guide on the new machine with the same key (keep your key saved somewhere safe, like a password manager).</p>
+  <p><strong>How do I remove it?</strong> Run <code>tracker uninstall</code> in a terminal. Done.</p>
+  <p style="margin-bottom:0"><strong>An engineer left the team?</strong> <span class="role-badge role-admin">Admin</span> revoke their key (see <em>Managing keys</em> in Part A) — their access stops within the hour, as soon as the last 60-minute token expires.</p>
+</div>
+
+<footer>
+  Edge8 Tracker · one-time setup guide · works on Windows, macOS and Linux<br>
+  Server: edge8-github-app-tracker-kappa.vercel.app
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,6 +1,6 @@
 {
   "name": "@edge8/tracker",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "edge8-tracker client: one-time setup of the git credential helper",
   "type": "module",
   "bin": {

@@ -10,7 +10,7 @@ classified — all recomputable from the raw event log.
 > install it, ask an admin for your key, run `tracker setup`. See **[Engineer setup](#engineer-setup)**.
 
 Production: **Vercel** (Node serverless, `api/*`) + **Supabase Postgres** (schema `tracker`).
-Base URL: `https://edge8-github-app-tracker.vercel.app`
+Base URL: `https://edge8-github-app-tracker-kappa.vercel.app`
 
 ```
 engineer machine ── git pull/push ──► credential helper (~/.edge8) ──► POST /api/app-token ┐
@@ -56,7 +56,7 @@ gh release download --repo talentedgeai/edge8-github-app-tracker --pattern "*.tg
 npm i -g ./tracker.tgz
 
 # 3. Set up (ask an admin for your key).
-tracker setup --key e8k_xxxxxxxx_yyyy --server https://edge8-github-app-tracker.vercel.app
+tracker setup --key e8k_xxxxxxxx_yyyy --server https://edge8-github-app-tracker-kappa.vercel.app
 ```
 
 After setup, every `git clone/pull/push` on a **tracked** repo authenticates automatically
@@ -67,7 +67,7 @@ credential manager. Undo with `tracker uninstall`.
 ---
 
 ## API reference
-Base URL `https://edge8-github-app-tracker.vercel.app`. All bodies are JSON.
+Base URL `https://edge8-github-app-tracker-kappa.vercel.app`. All bodies are JSON.
 
 | Method | Path | Auth header | Purpose |
 |---|---|---|---|
@@ -153,30 +153,27 @@ Header `x-admin-token`
 | `TRACKER_DB_URL` | Supabase **transaction pooler** URI (port **6543**) |
 | `ADMIN_TOKEN` | secret guarding `/api/admin/keys` |
 
-> ⚠️ **Security:** `ADMIN_TOKEN` is a live secret — anyone who has it can mint keys. The value
-> below is a **shared test token for the current instance**; rotate it (and keep the real one
-> only in Vercel env, not in git) before treating this as production.
->
-> ```
-> ADMIN_TOKEN = DhzMI2qGCa
-> ```
+> ⚠️ **Security:** `ADMIN_TOKEN` is a live secret — anyone who has it can mint keys. Keep it
+> only in the Vercel env and a password manager, never in git. The commands below read it from
+> an `ADMIN_TOKEN` variable set in your shell (`export ADMIN_TOKEN=...` /
+> `$env:ADMIN_TOKEN = "..."`).
 
 ### Issue a key (for a new engineer)
 ```bash
-curl -X POST https://edge8-github-app-tracker.vercel.app/api/admin/keys \
-  -H "x-admin-token: DhzMI2qGCa" -H "content-type: application/json" \
+curl -X POST https://edge8-github-app-tracker-kappa.vercel.app/api/admin/keys \
+  -H "x-admin-token: $ADMIN_TOKEN" -H "content-type: application/json" \
   -d '{"email":"engineer@edge8.ai"}'
 # → copy the "key" value from the response and send it to the engineer privately
 ```
 List / revoke:
 ```bash
-curl https://edge8-github-app-tracker.vercel.app/api/admin/keys -H "x-admin-token: DhzMI2qGCa"
-curl -X DELETE https://edge8-github-app-tracker.vercel.app/api/admin/keys \
-  -H "x-admin-token: DhzMI2qGCa" -H "content-type: application/json" -d '{"key_id":"e8k_xxxxxxxx"}'
+curl https://edge8-github-app-tracker-kappa.vercel.app/api/admin/keys -H "x-admin-token: $ADMIN_TOKEN"
+curl -X DELETE https://edge8-github-app-tracker-kappa.vercel.app/api/admin/keys \
+  -H "x-admin-token: $ADMIN_TOKEN" -H "content-type: application/json" -d '{"key_id":"e8k_xxxxxxxx"}'
 ```
 
 ### GitHub App
-- **Webhook URL:** `https://edge8-github-app-tracker.vercel.app/api/webhooks/github`
+- **Webhook URL:** `https://edge8-github-app-tracker-kappa.vercel.app/api/webhooks/github`
 - **Webhook secret:** equal to `WEBHOOK_SECRET`
 - **Permissions:** Contents R/W, Pull requests R/W, Metadata R
 - **Events:** push, pull_request, pull_request_review, create, delete, repository, member, label, release
