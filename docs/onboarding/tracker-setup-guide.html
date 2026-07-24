@@ -133,6 +133,7 @@
     <div class="flow-col admin">
       <h4>🔑 Admin <span class="role-badge role-admin">once per engineer</span></h4>
       <ol>
+        <li><em>Repo under a new owner?</em> Get the App <strong>installed</strong> on that org/user first — see <a href="#part-a0">Step 0</a></li>
         <li>Creates an <strong>engineer key</strong> (<code>e8k_…</code>) — see <a href="#part-a">Part A</a></li>
         <li>Downloads the latest <code>tracker.tgz</code> installer</li>
         <li>Sends both <strong>privately</strong> to the engineer</li>
@@ -160,6 +161,37 @@
 
 <h2 id="part-a">Part A — Admin: create &amp; send the key <span class="role-badge role-admin">Admin</span></h2>
 <p>Already received your <code>e8k_…</code> key and <code>tracker.tgz</code>? You're the engineer — skip to <a href="#part-b">Part B</a>.</p>
+
+<div class="card admin-card" id="part-a0">
+  <div class="step">
+    <div class="step-num admin-num">0</div>
+    <div class="step-body">
+      <h3>Repo outside the org? Install the App on its owner first</h3>
+      <p>The tracker only covers repositories whose <strong>owner</strong> (org or user account) has the
+         GitHub App installed. Repos under <code>talentedgeai</code> are already covered. For a repo under
+         <strong>any other owner</strong>, do this once per owner:</p>
+      <ol>
+        <li>Someone with an account in the target org (or the account owner, for personal repos) opens
+            <a href="https://github.com/apps/edge8-github-app-tracker">github.com/apps/edge8-github-app-tracker</a>
+            → <strong>Install</strong> → picks that org/user → choose <strong>All repositories</strong>
+            (recommended — future repos auto-track) or select specific repos.</li>
+        <li><strong>If that person is the org owner/admin:</strong> the install completes immediately. Done.</li>
+        <li><strong>If they are NOT the owner:</strong> the button becomes <strong>Request</strong> —
+            GitHub turns it into an <em>installation request</em> and <strong>emails the org owners</strong>.
+            An owner approves it via the link in that email, or at
+            <em>Org Settings → Third-party Access → GitHub Apps</em> (owners can adjust the repo list
+            before approving). Nothing is installed until an owner accepts.</li>
+      </ol>
+      <div class="tip">💬 The GitHub email is easy to miss — after clicking <strong>Request</strong>,
+         message the org owner directly so they approve it right away.</div>
+      <div class="warn-box">⚠️ <strong>Personal accounts have no request flow</strong> — only the account
+         owner themselves can install the App on a personal account.</div>
+      <p style="margin-bottom:0">After the install is accepted there is <strong>nothing else to configure</strong> —
+         the server detects it automatically, and <em>existing engineer keys work on the new repos
+         immediately</em>. Now continue with steps 1–3 below.</p>
+    </div>
+  </div>
+</div>
 
 <div class="card admin-card">
   <div class="step">
@@ -366,7 +398,7 @@ npm i -g ./tracker.tgz</code></pre>
     </tr>
     <tr>
       <td>Git asks for a username/password when cloning</td>
-      <td>Either setup didn't finish (redo Step 4) or that repository isn't tracked by Edge8 yet — tell your admin which repo you tried.</td>
+      <td>Either setup didn't finish (redo Step 4) or that repository isn't covered yet — its owner may not have the App installed (see <a href="#part-a0">Part A, Step 0</a>). Tell your admin which repo you tried.</td>
     </tr>
     <tr>
       <td><span class="role-badge role-admin">Admin</span> <code>{"error":"unauthorized"}</code></td>

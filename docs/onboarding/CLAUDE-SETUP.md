@@ -9,6 +9,9 @@ plain sentence per step, never paste raw logs at them, and do every technical st
 ```
   ADMIN (once per engineer)                ENGINEER (once per machine)
   ─────────────────────────                ───────────────────────────
+  0. repo under a NEW owner? get the
+     App installed on that org/user
+     (non-owners: Request → owner accepts)
   1. create engineer key        ────────►  receives e8k_… key + tracker.tgz
      (POST /api/admin/keys)     privately
   2. download tracker.tgz                  3. npm i -g tracker.tgz
@@ -58,6 +61,26 @@ Infer it from what they say, and confirm in one sentence:
 2. **The engineer's work email** (becomes the key's `member` identity for attribution).
 
 ### Steps
+
+**A0. Repo under a new owner? Ensure the App is installed there first.** The tracker only
+covers repos whose **owner** (org or user) has the GitHub App installed — `talentedgeai` is
+already covered. For any other owner, this happens once per owner, on GitHub (not on this
+machine), so your job is to walk the admin through it:
+
+1. Someone with an account in the target org — or the account owner, for a personal repo —
+   opens `https://github.com/apps/edge8-github-app-tracker` → **Install** → picks the target
+   org/user → **All repositories** (recommended) or selects specific repos.
+2. If that person **is** an org owner/admin, the install completes immediately.
+3. If they are **not** an owner, the button reads **Request** instead: GitHub creates an
+   installation request and **emails the org owners**; an owner approves via the email link or
+   at *Org Settings → Third-party Access → GitHub Apps* (they can adjust the repo list before
+   accepting). Nothing works until an owner accepts — tell the requester to ping the owner
+   directly, the email is easy to miss.
+4. Personal accounts have **no request flow** — only the account owner can install.
+
+Once installed there is nothing to configure server-side (the `installation` webhook registers
+it automatically) and **existing engineer keys work on the newly covered repos immediately** —
+key issuance (A1) does not depend on this step, but git access does.
 
 **A1. Create the key.** Call the admin API (pick the tool that exists on this machine —
 `curl` on macOS/Linux, `Invoke-RestMethod` or `curl.exe` on Windows; note plain `curl` in
@@ -190,7 +213,9 @@ tell the user their first real `git clone/pull` will confirm it.
 
 If git prompts for a username/password: setup didn't take or the repo isn't covered by the
 Edge8 GitHub App installation — re-run B4, and if it persists tell the user to report the
-repo name to their admin.
+repo name to their admin. A common cause: the repo's **owner** has no App installation yet
+(e.g. a repo outside the org) — that's fixed by Role A, step A0, not by anything on this
+machine.
 
 **B6. Report done.** Give the user a short plain-language summary:
 - ✔ what was installed and activated
