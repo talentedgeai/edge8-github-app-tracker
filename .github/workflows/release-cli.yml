@@ -26,5 +26,5 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" cli/edge8-tracker-*.tgz \
             --title "edge8-tracker CLI $GITHUB_REF_NAME" \
-            --notes "CLI tarball. Install: \`npm i -g edge8-tracker-*.tgz\` then \`tracker setup --key <key> --server https://edge8-github-app-tracker.vercel.app\`" \
+            --notes "CLI tarball. Install: \`npm i -g edge8-tracker-*.tgz\` then \`tracker setup --key <key> --server https://edge8-github-app-tracker-kappa.vercel.app\`" \
           || gh release upload "$GITHUB_REF_NAME" cli/edge8-tracker-*.tgz --clobber
