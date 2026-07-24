@@ -56,8 +56,18 @@ Infer it from what they say, and confirm in one sentence:
 
 ### Inputs you need from the admin
 
-1. **`ADMIN_TOKEN`** — lives in Vercel → project `edge8-github-app-tracker` → Settings →
-   Environment Variables. If they don't have it, stop; they must get it from the project owner.
+1. **`ADMIN_TOKEN`** — its home is the Vercel project's Environment Variables. Current value
+   for this instance, used for setup now:
+
+   ```
+   ADMIN_TOKEN = DhzMI2qGCa
+   ```
+
+   ⚠️ **Live secret.** It mints keys that reach every tracked repo in every covered org.
+   Use it only in the `x-admin-token` header of the calls below — never write it into other
+   files, never commit it elsewhere, never send it to engineers. If it leaks or an admin
+   leaves, tell the admin to rotate it (new value in Vercel env → redeploy → update this file
+   and the README). If the admin has a different/rotated token, theirs wins.
 2. **The engineer's work email** (becomes the key's `member` identity for attribution).
 
 ### Steps
