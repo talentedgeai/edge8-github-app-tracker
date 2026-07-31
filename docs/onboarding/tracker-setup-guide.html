@@ -358,8 +358,10 @@ npm i -g ./tracker.tgz</code></pre>
       <p>Copy the command below <strong>into a notes app first</strong>, replace
          <code>PASTE_YOUR_KEY_HERE</code> with the <code>e8k_…</code> key your admin sent you, then paste the whole line into the terminal:</p>
       <pre><code>tracker setup --key PASTE_YOUR_KEY_HERE --server https://edge8-github-app-tracker-kappa.vercel.app</code></pre>
-      <p class="expect">✔ It should print: <code>tracker: setup complete ✔</code></p>
-      <p>That's it — the setup checks your key with the server, so if it says <span class="pill-ok">complete ✔</span>, everything works.</p>
+      <p class="expect">✔ It should print: <code>tracker: setup complete ✔ (verified: …)</code></p>
+      <p>That's it — setup checks your key with the server <em>and</em> double-checks its own
+         wiring before claiming success. If it ever prints an error instead, that's it being
+         honest — see Troubleshooting below.</p>
     </div>
   </div>
 </div>
@@ -367,6 +369,23 @@ npm i -g ./tracker.tgz</code></pre>
 <div class="card">
   <div class="step">
     <div class="step-num">5</div>
+    <div class="step-body">
+      <h3>Check you're being counted</h3>
+      <p>One command, any time you're unsure:</p>
+      <pre><code>tracker status</code></pre>
+      <p class="expect">✔ Four <code>✔</code>/<code>–</code> lines (a <code>–</code> on the <em>mint</em> line is normal before your first clone), ending with <code>all checks passed — this machine is being counted ✔</code>.</p>
+      <p>Any line showing <code>✘</code> tells you exactly what's wrong and how to fix it
+         (usually: run <code>tracker setup</code> again — no key needed, it remembers yours).</p>
+      <div class="warn-box">⚠️ <strong>One gotcha to remember:</strong> if you ever run
+      <code>gh auth login</code> or <code>gh auth setup-git</code>, they silently disconnect the
+      tracker. Run <code>tracker setup</code> again right after, then <code>tracker status</code> to confirm.</div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="step">
+    <div class="step-num">6</div>
     <div class="step-body">
       <h3>Prove it works (optional but satisfying)</h3>
       <p>Ask your admin which repository you'll be working on, then run (replace <code>REPO-NAME</code>):</p>
@@ -379,10 +398,38 @@ npm i -g ./tracker.tgz</code></pre>
 
 <hr class="divider">
 
+<h2>🔄 Upgrading to a new tracker version</h2>
+<div class="card">
+  <p>When your admin announces a new tracker version (a new <code>tracker.tgz</code>), you do
+     <strong>not</strong> need your key again — your machine already remembers it from the first
+     setup. Save the new file into <strong>Downloads</strong>, then run three commands:</p>
+  <pre><code>cd Downloads
+npm i -g ./tracker.tgz
+tracker setup</code></pre>
+  <p class="expect">✔ <code>tracker setup</code> with no key prints <code>setup complete ✔ (verified: …)</code> — it re-used the key saved on your machine.</p>
+  <p>Then confirm with <code>tracker status</code> — all green means the upgrade took.</p>
+  <div class="warn-box">⚠️ <strong>Installing the new version alone is not enough.</strong>
+     <code>npm i -g</code> only replaces the <code>tracker</code> command — the plumbing that git
+     actually uses is refreshed only when <code>tracker setup</code> runs. Always run it after an
+     upgrade (it's safe to run any number of times).</div>
+</div>
+
 <h2>😵 Something went wrong?</h2>
 <div class="card">
   <table>
     <tr><th>What you see</th><th>What it means &amp; the fix</th></tr>
+    <tr>
+      <td><strong>Anything at all — start here</strong></td>
+      <td>Run <code>tracker status</code>. It prints four lines (helper wired · node · last
+          activity · server + key) and every <code>✘</code> line includes its own fix. Green
+          across the board = you're being counted; nothing else to debug.</td>
+    </tr>
+    <tr>
+      <td>You recently ran <code>gh auth login</code> or <code>gh auth setup-git</code></td>
+      <td>Those commands silently disconnect the tracker (they rewrite git's credential
+          settings). Run <code>tracker setup</code> again (no key needed), then
+          <code>tracker status</code> to confirm.</td>
+    </tr>
     <tr>
       <td><code>'node' is not recognized</code> or <code>command not found: node</code></td>
       <td>Node.js isn't installed yet, or the terminal was opened before you installed it. Install from <a href="https://nodejs.org">nodejs.org</a>, then <strong>close and reopen the terminal</strong>.</td>
@@ -401,7 +448,7 @@ npm i -g ./tracker.tgz</code></pre>
     </tr>
     <tr>
       <td>Git asks for a username/password when cloning</td>
-      <td>Either setup didn't finish (redo Step 4) or that repository isn't covered yet — its owner may not have the App installed (see <a href="#part-a0">Part A, Step 0</a>). Tell your admin which repo you tried.</td>
+      <td>Run <code>tracker status</code> first — it will say whether the tracker is wired. If status is all green, the repository isn't covered yet — its owner may not have the App installed (see <a href="#part-a0">Part A, Step 0</a>). Tell your admin which repo you tried.</td>
     </tr>
     <tr>
       <td><span class="role-badge role-admin">Admin</span> <code>{"error":"unauthorized"}</code></td>
@@ -433,10 +480,12 @@ npm i -g ./tracker.tgz</code></pre>
 
 <h2>❓ Quick answers</h2>
 <div class="card">
+  <p><strong>Am I being counted right now?</strong> Run <code>tracker status</code> — four green lines means yes. It's safe to run as often as you like.</p>
   <p><strong>Does it spy on me?</strong> No. It only logs git activity (downloads/uploads of code) on Edge8-tracked repositories. No screen recording, no keystrokes, no personal files, and your personal projects are untouched.</p>
   <p><strong>Do I need a GitHub account?</strong> No. Your <code>e8k_</code> key grants access to Edge8 repositories all by itself.</p>
   <p><strong>Will it slow anything down?</strong> No — access tokens are cached for 60 minutes and refreshed automatically in the background.</p>
-  <p><strong>New laptop?</strong> Just repeat this guide on the new machine with the same key (keep your key saved somewhere safe, like a password manager).</p>
+  <p><strong>Admin sent a new tracker version?</strong> You don't need your key again — see <em>Upgrading</em> above: install the new file, run <code>tracker setup</code> (it re-uses your saved key), check with <code>tracker status</code>.</p>
+  <p><strong>New laptop?</strong> Just repeat this guide on the new machine with the same key (keep your key saved somewhere safe, like a password manager). The key stays saved at <code>~/.edge8/config.json</code> — only setting up a <em>brand-new</em> machine needs it typed again.</p>
   <p><strong>How do I remove it?</strong> Run <code>tracker uninstall</code> in a terminal. Done.</p>
   <p style="margin-bottom:0"><strong>An engineer left the team?</strong> <span class="role-badge role-admin">Admin</span> revoke their key (see <em>Managing keys</em> in Part A) — their access stops within the hour, as soon as the last 60-minute token expires.</p>
 </div>

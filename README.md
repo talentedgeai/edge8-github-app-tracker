@@ -57,12 +57,30 @@ npm i -g ./tracker.tgz
 
 # 3. Set up (ask an admin for your key).
 tracker setup --key e8k_xxxxxxxx_yyyy --server https://edge8-github-app-tracker-kappa.vercel.app
+
+# 4. Confirm you're being counted (run this any time you're unsure).
+tracker status
 ```
 
 After setup, every `git clone/pull/push` on a **tracked** repo authenticates automatically
 with a fresh 60-minute token (auto-refreshed — git calls the helper on each operation; cache
 hits send a `/beacon` heartbeat). Untracked/personal repos fall through to your normal
-credential manager. Undo with `tracker uninstall`.
+credential manager. Undo with `tracker uninstall` (other credential helpers are preserved).
+
+`tracker status` prints four lines — helper wired (in the *effective* chain git walks) ·
+which node will run it · last token mint · server reachable + key accepted — and exits 0
+only when the machine is verifiably being counted. Every ✘ line includes its fix.
+
+Two things worth knowing:
+- **`gh auth login` / `gh auth setup-git` silently remove the tracker** (gh rewrites git's
+  credential-helper list). Re-run `tracker setup` afterwards — no flags needed, it reuses
+  the stored key. Setup is idempotent and preserves gh as a fallback.
+- **Upgrading to a new CLI version:** install the new tarball, then re-run `tracker setup`
+  once — **no flags, no key**: it re-uses the key/server stored in `~/.edge8/config.json`
+  and refreshes the helper files to the newly installed version (`npm i -g` alone replaces
+  only the CLI, never the git plumbing). Coming from v0.2.x this also replaces the old
+  node-pinned wiring with a shim that re-resolves node at run time, so `brew upgrade node`
+  (or a Node reinstall) can no longer silently kill tracking.
 
 ---
 
