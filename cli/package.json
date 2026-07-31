@@ -1,10 +1,13 @@
 {
   "name": "@edge8/tracker",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "edge8-tracker client: one-time setup of the git credential helper",
   "type": "module",
   "bin": {
     "tracker": "./bin/tracker.js"
+  },
+  "scripts": {
+    "test": "node --test"
   },
   "files": [
     "bin/",

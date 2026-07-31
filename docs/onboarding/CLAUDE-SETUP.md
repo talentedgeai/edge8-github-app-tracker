@@ -16,7 +16,8 @@ plain sentence per step, never paste raw logs at them, and do every technical st
      (POST /api/admin/keys)     privately
   2. download tracker.tgz                  3. npm i -g tracker.tgz
      from GitHub Releases                  4. tracker setup --key e8k_… --server …
-  3. send both to engineer                 5. git clone/pull/push on tracked repos
+  3. send both to engineer                 5. tracker status   → 4 green lines = counted
+                                           6. git clone/pull/push on tracked repos
                                               → auto-authenticated + activity logged
 ```
 
@@ -197,19 +198,41 @@ or tell the user to reopen the terminal.
 tracker setup --key <ENGINEER_KEY> --server https://edge8-github-app-tracker-kappa.vercel.app
 ```
 
-`tracker setup` validates the key against the server itself. Expected output ends with
-`tracker: setup complete ✔` plus the config/helper paths.
+`tracker setup` validates the key against the server, wires git, and then **verifies its own
+work** (reads the config back and checks the effective credential chain). Expected output
+starts with `tracker: setup complete ✔ (verified: …)` plus the config/helper paths. It
+preserves any credential helpers already on the machine (`gh`, OS credential managers) —
+they become fallbacks for personal repos.
 
-Error handling:
+Re-running setup is always safe and, once a machine is configured, needs **no flags**:
+plain `tracker setup` reuses the stored key/server from `~/.edge8/config.json`.
+
+Error handling — **first move for ANY problem in B4/B5 is `tracker status`** (four lines:
+helper wired / node / last mint / server+key; exit 0 = machine is counted; every ✘ line
+includes its own fix):
 - `key rejected by the server (401)` → the key is wrong or revoked. Ask the user to re-paste
   it (it is long and easy to truncate). Two failures → stop, tell them to request a fresh key
   from their admin.
 - `missing/invalid --key` → the key didn't match `e8k_<id>_<secret>` — likely truncated.
-- Network/timeout errors → check connectivity to
-  `https://edge8-github-app-tracker-kappa.vercel.app/api/health` (expects `{"ok":true,…}`) and retry
-  once; serverless cold starts can be slow.
+- `setup verification FAILED` + a printed helper list → this is setup working as designed
+  (it refuses to claim success when the write didn't take — e.g. another tool holds
+  `.gitconfig.lock`, or an unusual git config include interferes). Close IDEs/git GUIs,
+  re-run `tracker setup`; if it persists, send the printed list to the admin.
+- Network/timeout errors → run `tracker status` (its server line distinguishes
+  unreachable / unhealthy / key-rejected) and retry once; serverless cold starts can be slow.
+  A machine that was set up before can still repair its git wiring while the server is down —
+  setup prints a warning and proceeds.
 
-**B5. Verify end-to-end.** Only an **authenticated** git operation proves the loop, so use a
+**B5. Verify.** First the one-command check:
+
+```
+tracker status
+```
+
+Expected: four ✔/– lines and `all checks passed — this machine is being counted ✔` (exit 0).
+Any ✘ line names the problem and the fix (usually: re-run `tracker setup`).
+
+Then, if possible, prove the loop end-to-end with an **authenticated** git operation on a
 **private tracked repo** (public-repo clones never invoke a credential helper). If the user
 gave you a repo name:
 
@@ -230,10 +253,14 @@ machine.
 **B6. Report done.** Give the user a short plain-language summary:
 - ✔ what was installed and activated
 - ✔ what happens now (tracked repos authenticate automatically; personal repos unaffected)
+- ⚠️ the one gotcha: `gh auth login` / `gh auth setup-git` **silently remove the tracker**
+  from git's config (gh rewrites the credential helper list). If they ever run those,
+  re-run `tracker setup` right after. When in doubt, any time: `tracker status`.
 - how to undo it later: `tracker uninstall`
 
 ### Rollback
 
-If the user asks to remove everything: `tracker uninstall` (removes the git wiring; the
-config file stays at `~/.edge8/config.json` — mention it so they can delete it manually if
-they want the key gone from the machine too).
+If the user asks to remove everything: `tracker uninstall` — it removes only the tracker's
+entries (other credential helpers like `gh` are preserved) and deletes the helper scripts
+and token cache; the config file stays at `~/.edge8/config.json` — mention it so they can
+delete it manually if they want the key gone from the machine too.
