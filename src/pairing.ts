@@ -114,40 +114,66 @@ const isBotLogin = (login: string | null): boolean =>
 
 // author_block is "handle email ..." free text; resolve to an engineer_keys.member
 // when one of its tokens matches, otherwise keep the raw block.
+const matchAuthorMember = (
+  authorBlock: string | null,
+  members: string[],
+): string | null => {
+  if (!authorBlock) return null;
+  const tokens = String(authorBlock).trim().split(/\s+/);
+  return members.find((m) => tokens.includes(m)) ?? authorBlock;
+};
+
 export async function resolveAuthorMember(pr: any): Promise<string | null> {
-  if (!pr.author_block) return null;
-  const tokens = String(pr.author_block).trim().split(/\s+/);
   const members = (
     await db.all(`SELECT DISTINCT member FROM engineer_keys`)
   ).map((r) => r.member as string);
-  return members.find((m) => tokens.includes(m)) ?? pr.author_block;
+  return matchAuthorMember(pr.author_block, members);
 }
 
 // Orphan sweep (brief §6): a merged PR by a real (non-bot) author with zero paired
 // spans is delivered work with no capture — flag loudly. Open PRs are not judged yet.
+// Runs after every mint and PR webhook, so it must stay cheap: never SELECT * here —
+// `raw` holds the full webhook payload (~17KB/row) and a full-table pull of it was
+// ~50MB of egress per sweep. Span counts and members are fetched once, not per PR,
+// and a row is only rewritten when its derived values actually changed.
 export async function orphanSweep(): Promise<void> {
-  const prs = await db.all(`SELECT * FROM pull_requests`);
+  const prs = await db.all(
+    `SELECT github_pr_id, repo_id, merged, author_block, user_login,
+            author_member, orphaned
+     FROM pull_requests`,
+  );
+  const members = (
+    await db.all(`SELECT DISTINCT member FROM engineer_keys`)
+  ).map((r) => r.member as string);
+  const spanCounts = new Map<number, number>();
+  const counted = await db.all(
+    `SELECT pull_request_id, COUNT(*) AS c FROM work_spans
+     WHERE pull_request_id IS NOT NULL GROUP BY pull_request_id`,
+  );
+  for (const row of counted)
+    spanCounts.set(Number(row.pull_request_id), Number(row.c));
+
   for (const pr of prs) {
-    const author = await resolveAuthorMember(pr);
+    const author = matchAuthorMember(pr.author_block, members);
     if (!pr.author_block && !isBotLogin(pr.user_login)) {
       await raiseFlag("missing_author_block", pr.repo_id, { pr: pr.github_pr_id });
     }
-    const n = (
-      await db.get(
-        `SELECT COUNT(*) AS c FROM work_spans WHERE pull_request_id = ?`,
-        pr.github_pr_id,
-      )
-    ).c;
+    const n = spanCounts.get(Number(pr.github_pr_id)) ?? 0;
     const orphaned =
-      pr.merged === 1 && Number(n) === 0 && !isBotLogin(pr.user_login) ? 1 : 0;
+      pr.merged === 1 && n === 0 && !isBotLogin(pr.user_login) ? 1 : 0;
     if (orphaned)
       await raiseFlag("orphaned_pr", pr.repo_id, { pr: pr.github_pr_id });
-    await db.run(
-      `UPDATE pull_requests SET author_member = ?, orphaned = ? WHERE github_pr_id = ?`,
-      author,
-      orphaned,
-      pr.github_pr_id,
-    );
+    if (
+      (author ?? null) !== (pr.author_member ?? null) ||
+      orphaned !== Number(pr.orphaned ?? 0)
+    ) {
+      await db.run(
+        `UPDATE pull_requests SET author_member = ?, orphaned = ? WHERE github_pr_id = ?`,
+        author,
+        orphaned,
+        pr.github_pr_id,
+      );
+    }
   }
 }
 
