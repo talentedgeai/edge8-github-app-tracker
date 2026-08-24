@@ -123,12 +123,10 @@ const matchAuthorMember = (
   return members.find((m) => tokens.includes(m)) ?? authorBlock;
 };
 
-export async function resolveAuthorMember(pr: any): Promise<string | null> {
-  const members = (
-    await db.all(`SELECT DISTINCT member FROM engineer_keys`)
-  ).map((r) => r.member as string);
-  return matchAuthorMember(pr.author_block, members);
-}
+const loadMembers = async (): Promise<string[]> =>
+  (await db.all(`SELECT DISTINCT member FROM engineer_keys`)).map(
+    (r) => r.member as string,
+  );
 
 // Orphan sweep (brief §6): a merged PR by a real (non-bot) author with zero paired
 // spans is delivered work with no capture — flag loudly. Open PRs are not judged yet.
@@ -142,9 +140,7 @@ export async function orphanSweep(): Promise<void> {
             author_member, orphaned
      FROM pull_requests`,
   );
-  const members = (
-    await db.all(`SELECT DISTINCT member FROM engineer_keys`)
-  ).map((r) => r.member as string);
+  const members = await loadMembers();
   const spanCounts = new Map<number, number>();
   const counted = await db.all(
     `SELECT pull_request_id, COUNT(*) AS c FROM work_spans
