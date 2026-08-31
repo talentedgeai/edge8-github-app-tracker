@@ -1,0 +1,35 @@
+#!/bin/sh
+# claude-session-trailer (prepare-commit-msg git hook)
+#
+# Appends the current Claude Code session's UUID and start time to the commit message:
+#
+#   Claude-Session: <uuid>
+#   Claude-Session-Start: <ISO 8601>
+#
+# The human-token tracker pairs PRs to sessions from these — no telemetry needed.
+# Installed by .claude/hooks/session-trailer-start on SessionStart.
+# Spec: human-token-tracker docs/plans/2026-09-01-session-start-trailer.md
+# Never blocks a commit: every exit path is 0.
+set -u
+
+msg_file="${1:-}"
+source="${2:-}"
+[ -n "$msg_file" ] && [ -f "$msg_file" ] || exit 0
+
+# Only Claude Code's own commits carry the trailer. A human committing from their own
+# terminal has no CLAUDE_CODE_* environment, so their commits are never mislabeled with
+# a stale session.
+[ -n "${CLAUDE_CODE_ENTRYPOINT:-}" ] || exit 0
+
+# Merges and squashes summarize other commits; the trailer belongs to the originals.
+case "$source" in merge|squash) exit 0 ;; esac
+grep -q '^Claude-Session:' "$msg_file" 2>/dev/null && exit 0
+
+state="$(git rev-parse --git-dir 2>/dev/null)/claude-session.json"
+[ -f "$state" ] || exit 0
+session_id=$(sed -n 's/.*"session_id":"\([^"]*\)".*/\1/p' "$state" 2>/dev/null)
+started_at=$(sed -n 's/.*"started_at":"\([^"]*\)".*/\1/p' "$state" 2>/dev/null)
+[ -n "$session_id" ] && [ -n "$started_at" ] || exit 0
+
+printf '\nClaude-Session: %s\nClaude-Session-Start: %s\n' "$session_id" "$started_at" >> "$msg_file" 2>/dev/null
+exit 0

@@ -1,0 +1,55 @@
+#!/bin/sh
+# claude-session-trailer (SessionStart hook)
+#
+# Records this Claude Code session's UUID and true start time where the
+# prepare-commit-msg git hook can find them, and self-installs that git hook.
+# Together they stamp two trailers on every commit Claude Code makes here:
+#
+#   Claude-Session: <uuid>
+#   Claude-Session-Start: <ISO 8601>
+#
+# so the human-token tracker can pair a PR to its session with no telemetry.
+# Spec: human-token-tracker docs/plans/2026-09-01-session-start-trailer.md
+# Never fails the session: every exit path is 0.
+set -u
+
+payload=$(cat 2>/dev/null || true)
+session_id=$(printf '%s' "$payload" | python3 -c 'import json,sys
+try: print(json.load(sys.stdin).get("session_id",""))
+except Exception: print("")' 2>/dev/null || true)
+transcript=$(printf '%s' "$payload" | python3 -c 'import json,sys
+try: print(json.load(sys.stdin).get("transcript_path",""))
+except Exception: print("")' 2>/dev/null || true)
+[ -n "$session_id" ] || exit 0
+
+git_dir=$(git rev-parse --git-dir 2>/dev/null) || exit 0
+
+# True session start: the first timestamped entry in the transcript. Falls back to now —
+# at SessionStart the transcript may not exist yet, and "now" IS the session start then.
+started_at=""
+if [ -n "$transcript" ] && [ -f "$transcript" ]; then
+  started_at=$(head -c 65536 "$transcript" 2>/dev/null | python3 -c 'import re,sys
+m=re.search(r"\"timestamp\"\s*:\s*\"([^\"]+)\"", sys.stdin.read())
+print(m.group(1) if m else "")' 2>/dev/null || true)
+fi
+[ -n "$started_at" ] || started_at=$(date +%Y-%m-%dT%H:%M:%S%z | sed 's/\([0-9][0-9]\)$/:\1/')
+
+printf '{"session_id":"%s","started_at":"%s"}\n' "$session_id" "$started_at" \
+  > "$git_dir/claude-session.json" 2>/dev/null || exit 0
+
+# Self-install the git hook (write-then-atomic-mv, never in place). Repos that pin
+# core.hooksPath (husky etc.) must ship the hook tracked inside that directory instead —
+# a session hook must never write into a tracked tree.
+if [ -z "$(git config core.hooksPath 2>/dev/null || true)" ]; then
+  hooks_dir=$(git rev-parse --git-path hooks 2>/dev/null) || exit 0
+  src=$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/prepare-commit-msg
+  dst="$hooks_dir/prepare-commit-msg"
+  # Never clobber somebody else's hook: only install over ours (marker) or nothing.
+  if [ -f "$src" ] && { [ ! -f "$dst" ] || grep -q claude-session-trailer "$dst" 2>/dev/null; }; then
+    mkdir -p "$hooks_dir" 2>/dev/null || exit 0
+    cp "$src" "$dst.tmp.$$" 2>/dev/null || exit 0
+    chmod +x "$dst.tmp.$$" 2>/dev/null || true
+    mv "$dst.tmp.$$" "$dst" 2>/dev/null || rm -f "$dst.tmp.$$"
+  fi
+fi
+exit 0
