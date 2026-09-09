@@ -20,6 +20,58 @@ GitHub App (All repositories) ── webhooks ───────────�
 
 ---
 
+## Install the GitHub App
+Once per **repository owner** (org or personal account) — not per repo, and not per engineer.
+Coverage is owner-wide, so one install covers every repo under that owner.
+
+> **Already covered:** repos under **`talentedgeai`**. You only need this for a repo under a
+> **different** owner. Engineers setting up their own machine want
+> **[Engineer setup](#engineer-setup)** instead — this section is not for them.
+
+### Steps (browser only — nothing to install or configure locally)
+1. Sign in to GitHub, then open **<https://github.com/apps/edge8-github-app-tracker>**
+   (the App is public, so the page is reachable by anyone).
+2. Click **Install** (top right).
+3. Pick the target **org or user account**. GitHub only lists accounts you belong to.
+4. Choose **All repositories** — new repos are then tracked automatically with no further
+   action. (*Only select repositories* works, but someone must edit the list every time a
+   repo is created.)
+5. Confirm.
+
+### What happens next depends on who clicked
+| You are | What you see |
+|---|---|
+| Org **owner/admin** | Installs immediately — done, nothing else to do |
+| Org **member**, not an owner | The button reads **Request**. Nothing installs yet: GitHub files an installation request and emails the org owners. An owner approves it from that email or at *Org Settings → Third-party Access → GitHub Apps* (they can trim the repo list first) |
+| **Personal** account | **No request flow** — only the account owner can install on their own account. Not your account? Ask them to run steps 1–5 |
+
+> 💬 The GitHub notification email is easy to miss. After clicking **Request**, message the
+> org owner directly instead of waiting.
+
+### What the App asks for
+Contents **R/W**, Pull requests **R/W**, Metadata **R**. Contents R/W is what lets the server
+mint the short-lived tokens engineers' git clients use to clone and push.
+
+### After it is accepted
+Nothing to configure. The `installation` webhook fires, the server records the installation
+automatically (`src/parse.ts`), and **existing engineer keys work on the newly covered repos
+immediately** — nobody needs a new key or a re-run of `tracker setup`.
+
+### Verify it worked
+Have someone whose machine is already set up (`tracker status` green) `git clone` a repo under
+that owner:
+- **Clones without prompting for a password** → the App is installed and covering that repo.
+- **git prompts for credentials** → that owner is not covered. `/api/app-token` is returning
+  `404 no installation for repo` and the credential helper is deliberately staying silent, so
+  git falls through to the machine's normal credential manager.
+
+> **Order matters.** Key issuance does not depend on this step — an admin can create `e8k_`
+> keys at any time — but **git access does**. Install the App on a new owner *before* handing
+> out keys for its repos, or engineers hit that silent fall-through and assume their key is
+> broken.
+
+---
+
 ## Engineer setup
 One-time per machine — no repo clone needed.
 
@@ -207,14 +259,9 @@ curl -X DELETE https://edge8-github-app-tracker-kappa.vercel.app/api/admin/keys 
 - **Webhook secret:** equal to `WEBHOOK_SECRET`
 - **Permissions:** Contents R/W, Pull requests R/W, Metadata R
 - **Events:** push, pull_request, pull_request_review, create, delete, repository, member, label, release
-- **Install:** on the org/user with **All repositories** — new repos are tracked automatically.
-- **Repos under other owners:** the App is public — install it once per owner from
-  <https://github.com/apps/edge8-github-app-tracker> (choose the target org/user, then All
-  repositories). Org members who are **not** owners get a **Request** button instead: GitHub
-  emails the org owners and nothing activates until an owner approves (Org Settings →
-  Third-party Access → GitHub Apps). Personal accounts: only the account owner can install.
-  Once accepted, the `installation` webhook registers it automatically and **existing engineer
-  keys work on the new repos immediately**.
+- **Install:** on the org/user with **All repositories** — new repos are tracked
+  automatically. Click-by-click steps, the non-owner **Request** flow, and how to verify
+  coverage: **[Install the GitHub App](#install-the-github-app)**.
 
 ### Supabase
 Apply `supabase/migrations/0001_tracker.sql` (creates schema `tracker` + 10 tables + RLS
