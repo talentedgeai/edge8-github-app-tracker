@@ -240,6 +240,13 @@ Header `x-admin-token`
 > The commands below read it from a shell variable: `export ADMIN_TOKEN=...` (bash) /
 > `$env:ADMIN_TOKEN = "..."` (PowerShell).
 
+> **An engineer key now authenticates two things.** Since edge8-telemetry 2.0.0,
+> the same `e8k_` key a machine uses to mint git tokens also authenticates that
+> machine's Claude Code telemetry to `edge8.ai/api/telemetry/sessions/`. Two
+> consequences worth knowing: an engineer whose sessions should be counted needs
+> a key (no key = telemetry queues locally and never arrives), and revoking a key
+> stops that person's git access **and** their telemetry in one action.
+
 ### Issue a key (for a new engineer)
 ```bash
 curl -X POST https://edge8-github-app-tracker-kappa.vercel.app/api/admin/keys \
@@ -267,6 +274,26 @@ curl -X DELETE https://edge8-github-app-tracker-kappa.vercel.app/api/admin/keys 
 Apply `supabase/migrations/0001_tracker.sql` (creates schema `tracker` + 10 tables + RLS
 deny-all; touches nothing in `public`). Use the transaction-pooler string (port 6543) as
 `TRACKER_DB_URL`.
+
+**Planned move: onto the Edge8 Company Database (`wwchefrgkkxmhlkntufm`).** The tracker
+currently runs on its own Supabase project (`human-token-tracker`), which the Human Token
+Tracker cutover plans to retire. `htt.engineer_keys` already exists on the Edge8 project in
+this table's exact shape, so the move is data plus one env var, with no code change here:
+
+1. Apply `0001_tracker.sql` to the Edge8 project, minus `engineer_keys`.
+2. `pg_dump --schema=tracker --data-only` from the old project, restore into the new one,
+   then `insert into htt.engineer_keys select key_id, key_hash, member, status, issued_at
+   from tracker.engineer_keys on conflict (key_id) do nothing;` and replace
+   `tracker.engineer_keys` with an updatable view over `htt.engineer_keys`.
+3. Re-point `TRACKER_DB_URL` at the Edge8 project's pooler and redeploy.
+4. Verify with `GET /api/health` (it lists the ten tables it can see) and one real
+   `git clone` from a set-up machine, then `npm run reparse && npm run remint` to confirm
+   spans rebuild identically from the copied raw log.
+
+`src/db-pg.ts` qualifies every bare table name to `tracker.<name>`, so the schema name is
+all it depends on. Do this in a quiet window: `TRACKER_DB_URL` is what every engineer's
+`git pull` authenticates through. Plan: `docs/plans/htt/2026-09-11-telemetry-direct-to-supabase.md`
+in edge8-web.
 
 ### Cut a new CLI release
 ```bash
