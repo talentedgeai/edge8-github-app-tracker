@@ -275,25 +275,79 @@ Apply `supabase/migrations/0001_tracker.sql` (creates schema `tracker` + 10 tabl
 deny-all; touches nothing in `public`). Use the transaction-pooler string (port 6543) as
 `TRACKER_DB_URL`.
 
-**Planned move: onto the Edge8 Company Database (`wwchefrgkkxmhlkntufm`).** The tracker
-currently runs on its own Supabase project (`human-token-tracker`), which the Human Token
-Tracker cutover plans to retire. `htt.engineer_keys` already exists on the Edge8 project in
-this table's exact shape, so the move is data plus one env var, with no code change here:
+**Move onto the Edge8 Company Database (`wwchefrgkkxmhlkntufm`) — step 1 of 3 is done.**
+The tracker still runs on its own Supabase project (`human-token-tracker`), which the Human
+Token Tracker cutover plans to retire. Moving it also puts the key store where edge8-web's
+telemetry endpoint can read it. No code in this repo changes.
 
-1. Apply `0001_tracker.sql` to the Edge8 project, minus `engineer_keys`.
-2. `pg_dump --schema=tracker --data-only` from the old project, restore into the new one,
-   then `insert into htt.engineer_keys select key_id, key_hash, member, status, issued_at
-   from tracker.engineer_keys on conflict (key_id) do nothing;` and replace
-   `tracker.engineer_keys` with an updatable view over `htt.engineer_keys`.
-3. Re-point `TRACKER_DB_URL` at the Edge8 project's pooler and redeploy.
-4. Verify with `GET /api/health` (it lists the ten tables it can see) and one real
-   `git clone` from a set-up machine, then `npm run reparse && npm run remint` to confirm
-   spans rebuild identically from the copied raw log.
+**Done (2026-09-11):** `0002_move_to_edge8_company_database.sql` is applied to the Edge8
+project. The `tracker` schema exists there with all nine tables **empty**, plus
+`tracker.engineer_keys` as an auto-updatable view over `htt.engineer_keys`. Key issue,
+revoke and lookup were exercised through that view on the live database. Nothing points at
+the schema yet, so the running tracker is untouched.
 
-`src/db-pg.ts` qualifies every bare table name to `tracker.<name>`, so the schema name is
-all it depends on. Do this in a quiet window: `TRACKER_DB_URL` is what every engineer's
-`git pull` authenticates through. Plan: `docs/plans/htt/2026-09-11-telemetry-direct-to-supabase.md`
-in edge8-web.
+**Remaining, and why it is not automated:** the data copy needs `pg_dump` with both
+database passwords, which live only with an operator. Volumes:
+
+| table | size |
+|---|---|
+| `webhook_deliveries` | 232 MB (29,212 rows, ~18 KB each) |
+| `pull_requests` | 24 MB |
+| `push_events` | 6.4 MB |
+| `git_access_events`, `work_spans`, `capture_flags`, the rest | under 1.5 MB combined |
+| **total** | **264 MB** |
+
+### Step 2 — copy the data
+
+Pick a quiet window: `TRACKER_DB_URL` is what every engineer's `git pull` authenticates
+through. Set `OLD` and `NEW` to the two session-mode pooler URIs (port 5432; the
+transaction pooler on 6543 is for the app, not for `pg_dump`).
+
+```bash
+# 2a. Drop the two FK constraints on the TARGET first. pg_dump --data-only does not
+#     guarantee parent-before-child ordering, and --disable-triggers needs a superuser,
+#     which Supabase's postgres role is not.
+psql "$NEW" -c 'alter table tracker.push_events drop constraint push_events_delivery_id_fkey;
+                alter table tracker.work_spans  drop constraint work_spans_delivery_id_fkey;'
+
+# 2b. Everything except engineer_keys, in COPY format.
+pg_dump "$OLD" --schema=tracker --data-only --exclude-table=tracker.engineer_keys \
+  | psql "$NEW" --single-transaction -v ON_ERROR_STOP=1
+
+# 2c. engineer_keys as INSERTs. COPY cannot write to a view, and on the target this
+#     name IS a view; --column-inserts routes the rows into htt.engineer_keys.
+pg_dump "$OLD" --data-only --column-inserts --table=tracker.engineer_keys \
+  | psql "$NEW" -v ON_ERROR_STOP=1
+
+# 2d. Put the constraints back and confirm they hold.
+psql "$NEW" -c 'alter table tracker.push_events add constraint push_events_delivery_id_fkey
+                  foreign key (delivery_id) references tracker.webhook_deliveries(delivery_id);
+                alter table tracker.work_spans add constraint work_spans_delivery_id_fkey
+                  foreign key (delivery_id) references tracker.webhook_deliveries(delivery_id);'
+```
+
+Then compare row counts per table between `OLD` and `NEW` before going further. Expect
+14 rows in `htt.engineer_keys`, all `active`.
+
+### Step 3 — cut over
+
+1. Re-point `TRACKER_DB_URL` in this project's Vercel environment at the Edge8 project's
+   **transaction** pooler (port 6543) and redeploy.
+2. `GET /api/health` — it lists the tables it can see; the list should be the same ten.
+3. Have someone with `tracker status` green `git clone` a tracked repo. It must not prompt
+   for a password. This is the real test that keys survived.
+4. `npm run reparse && npm run remint` — spans and flags rebuild from the copied raw log and
+   must come out byte-identical to what was copied.
+5. Only after a few green days: pause the `human-token-tracker` Supabase project. Pause,
+   not delete, until the Human Token Tracker Phase 2 copy has been re-verified once more.
+
+**Rollback:** until step 3.1 nothing has moved; after it, re-point `TRACKER_DB_URL` back at
+the old project. The old project keeps serving throughout, so its data stays authoritative
+until you stop writing to it.
+
+Why no code changes: `src/db-pg.ts` rewrites every bare table name to `tracker.<name>`, so
+the schema name is the only thing it depends on. Plan:
+`docs/plans/htt/2026-09-11-telemetry-direct-to-supabase.md` in edge8-web.
 
 ### Cut a new CLI release
 ```bash
