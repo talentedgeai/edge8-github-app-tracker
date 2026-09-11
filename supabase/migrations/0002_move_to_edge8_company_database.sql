@@ -16,16 +16,17 @@
 -- column-for-column identical, because src/db-pg.ts rewrites bare table names to
 -- `tracker.<name>` and cares about nothing else.
 --
--- THE TABLES ARE EMPTY. This migration moves no data. The 264 MB copy
--- (232 MB of it webhook_deliveries) needs pg_dump and both database passwords;
--- see "Planned move" in README.md for the exact commands and their order.
--- Until TRACKER_DB_URL is re-pointed, this schema is inert and the live tracker
--- is unaffected.
+-- This migration moves no data; it only creates the shapes. The data move
+-- happened separately on the same day and is recorded in README.md: the three
+-- live-state tables (engineer_keys, app_installations, projects) were copied and
+-- verified byte-identical, and the 264 MB of capture history was deliberately
+-- left on the old project. Until TRACKER_DB_URL is re-pointed, this schema is
+-- inert and the live tracker is unaffected.
 
 create schema if not exists tracker;
 
 comment on schema tracker is
-  'Staged 2026-09-11 for the edge8-github-app-tracker database move. EMPTY until the data copy runs (pg_dump --schema=tracker --data-only from project znnnxubopsbvpvtvrtne). The live tracker still runs on that project: do not treat this schema as authoritative until TRACKER_DB_URL is re-pointed and verified.';
+  'edge8-github-app-tracker''s schema, staged 2026-09-11 for the move off project znnnxubopsbvpvtvrtne. Live state is COPIED and verified byte-identical: engineer_keys (14, via the view into htt), app_installations (10), projects (42). History was deliberately NOT copied by decision on 2026-09-11 (webhook_deliveries, push_events, pull_requests, git_access_events, work_spans, capture_flags: 264 MB); it remains on the old project, which should be paused rather than deleted. Capture starts fresh here. Still not live: TRACKER_DB_URL must be re-pointed before this schema receives anything.';
 
 create table if not exists tracker.webhook_deliveries (
   delivery_id text primary key,
@@ -36,6 +37,8 @@ create table if not exists tracker.webhook_deliveries (
   received_at text not null default to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
   parsed_at   text
 );
+comment on table tracker.webhook_deliveries is
+  'Empty by decision: pre-migration history stayed on the old project. Capture starts from the cutover, so remint/reparse can only rebuild what arrives after it.';
 
 create table if not exists tracker.git_access_events (
   id          bigint generated always as identity primary key,
