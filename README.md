@@ -8,6 +8,23 @@ classified — all recomputable from the raw event log.
 > **👋 New engineer?** You do **not** clone this repo. Grab the CLI from the
 > [**Releases**](https://github.com/talentedgeai/edge8-github-app-tracker/releases) page,
 > install it, ask an admin for your key, run `tracker setup`. See **[Engineer setup](#engineer-setup)**.
+>
+> **Already set up?** Both halves need to be current —
+> **[get on the current version](#for-engineers-get-on-the-current-version)**. Windows
+> machines on edge8-telemetry 2.0.0 have been reporting healthy while delivering nothing.
+
+## ⚠️ Needs attention
+
+Open items as of 2026-09-14, roughly in priority order. Ticked off in the sections linked.
+
+| | item | why it matters |
+|---|---|---|
+| 🔴 | **`ADMIN_TOKEN` is in this file in plaintext** (see [Environment variables](#environment-variables-vercel--project--settings--environment-variables)) | it mints engineer keys reaching every tracked repo in every covered org. Rotate it, and move it out of the repo before this is ever shared externally. |
+| 🟠 | **Every Windows engineer is invisible** until they update to edge8-telemetry **2.0.1** | 2.0.0 captured into a queue that could never drain and reported itself healthy. Their backlog returns on update. See [For engineers](#for-engineers-get-on-the-current-version). |
+| 🟠 | **The old Supabase project (`human-token-tracker`) still holds all capture history** | 15,078 `push_events` and 984 `work_spans` did not come across. **Pause it, do not delete it.** |
+| 🟡 | **The duplicate Vercel deployment should be deleted** — `edge8-github-app-tracker.vercel.app`, on a personal account | it held a stale `TRACKER_DB_URL` and silently took the webhooks for three days. While it exists the split can recur. |
+| 🟢 | ~~A new `tracker` table needs a grant + RLS policy~~ — **now automatic** | an event trigger applies both at `CREATE TABLE`. See [Database credentials](#database-credentials). |
+| 🟢 | `htt.engineer_keys` has 15 keys, all active — none has ever been revoked | worth an audit when someone leaves; revoking cuts git access and telemetry in one action. |
 
 Production: **Vercel** (Node serverless, `api/*`) + **Supabase Postgres** (schema `tracker`).
 Base URL: `https://edge8-github-app-tracker-kappa.vercel.app`
@@ -136,6 +153,63 @@ Two things worth knowing:
 
 ---
 
+## For engineers: get on the current version
+
+Two separate things run on your machine, and **both** need to be current. They are
+independent — having one working tells you nothing about the other.
+
+| | what it does | fires on |
+|---|---|---|
+| **tracker CLI** | mints git tokens so `clone/pull/push` works on tracked repos | every git operation |
+| **edge8-telemetry plugin** | reports Claude Code session effort | session start/end |
+
+### 1. The telemetry plugin — **2.0.1 or later**
+
+```bash
+claude plugin marketplace add talentedgeai/edge8-telemetry
+claude plugin marketplace update edge8
+claude plugin update edge8-telemetry@edge8
+claude plugin install edge8-telemetry@edge8
+```
+
+Then **restart Claude Code** — `update` does not affect a session already running. Confirm
+with `claude plugin list | grep -A1 edge8-telemetry`; the version prints on the line *below*
+the name. A red `✘ ... not found` from the `update` line is expected on a machine that never
+had the plugin; the `install` on the next line is the one that lands it.
+
+> 🪟 **On Windows, 2.0.1 is mandatory, and the symptom of 2.0.0 is that there is no symptom.**
+> The delivery module imported a Unix-only module, so it died at import — sessions were
+> captured into a queue that could never drain, while `/edge8-telemetry` reported consent ✅,
+> key ✅, repo ✅ and "N sessions awaiting delivery". Every statement was true; the next
+> start/end would never deliver either. Nothing queued is lost — updating delivers the whole
+> backlog on the first flush. macOS and Linux were unaffected.
+
+### 2. The engineer key — needed by **both**
+
+Since edge8-telemetry 2.0.0 the same `e8k_` key authenticates git token minting *and*
+telemetry, so a machine without one captures sessions locally and delivers nothing.
+
+```bash
+tracker status        # exits 0 only if you are verifiably being counted
+```
+
+If it is not green, or you have never set up, follow
+[Engineer setup](#engineer-setup). When an admin issues your key, point at the `-kappa`
+host — the bare `edge8-github-app-tracker.vercel.app` was a second deployment on a personal
+Vercel account and is retired:
+
+```bash
+tracker setup --key e8k_xxxxxxxx_yyyy --server https://edge8-github-app-tracker-kappa.vercel.app
+```
+
+### 3. Check it worked
+
+Inside Claude Code, run `/edge8-telemetry`. You want consent granted, a delivery key, the
+repo registered, and — the line that actually proves delivery — a non-zero "sessions stored"
+from the tracker. An outbox count that never falls means capture is fine and delivery is not.
+
+---
+
 ## API reference
 Base URL `https://edge8-github-app-tracker-kappa.vercel.app`. All bodies are JSON.
 
@@ -220,7 +294,7 @@ Header `x-admin-token`
 | `APP_ID` | GitHub App ID (numeric) |
 | `WEBHOOK_SECRET` | must equal the App's *Webhook secret* |
 | `GITHUB_APP_PRIVATE_KEY` | full `.pem` content (multi-line) |
-| `TRACKER_DB_URL` | Supabase **transaction pooler** URI (port **6543**) |
+| `TRACKER_DB_URL` | Supabase **transaction pooler** URI (port **6543**), as role **`tracker_app`** — *not* `postgres` (see [Database credentials](#database-credentials)) |
 | `ADMIN_TOKEN` | secret guarding `/api/admin/keys` |
 
 > ⚠️ **Security warning — live secret below.** `ADMIN_TOKEN` guards `/api/admin/keys`: anyone
@@ -271,14 +345,17 @@ curl -X DELETE https://edge8-github-app-tracker-kappa.vercel.app/api/admin/keys 
   coverage: **[Install the GitHub App](#install-the-github-app)**.
 
 ### Supabase
-Apply `supabase/migrations/0001_tracker.sql` (creates schema `tracker` + 10 tables + RLS
-deny-all; touches nothing in `public`). Use the transaction-pooler string (port 6543) as
-`TRACKER_DB_URL`.
+Apply the migrations in order: `0001_tracker.sql` (schema `tracker` + 10 tables + RLS
+deny-all; touches nothing in `public`), `0002_move_to_edge8_company_database.sql`
+(`engineer_keys` becomes a view over `htt.engineer_keys`), `0003_tracker_app_role.sql` (the
+`tracker_app` login the service uses). Use the transaction-pooler string (port 6543) as
+`TRACKER_DB_URL`, as role `tracker_app`.
 
-**Move onto the Edge8 Company Database (`wwchefrgkkxmhlkntufm`) — data is moved; one env
-var left.** The tracker still *runs* on its own Supabase project (`human-token-tracker`),
-which the Human Token Tracker cutover plans to retire. Moving it also puts the key store
-where edge8-web's telemetry endpoint can read it. No code in this repo changes.
+**The move onto the Edge8 Company Database (`wwchefrgkkxmhlkntufm`) is complete** — see
+[Cutover complete](#cutover-complete-2026-09-14). It put the key store where edge8-web's
+telemetry endpoint can read it, and retired the standalone `human-token-tracker` project
+(which still holds the capture history: **pause, do not delete**). No code in this repo
+changed for any of it.
 
 ### Done (2026-09-11)
 
@@ -316,19 +393,59 @@ catalogue was not worth the migration. Consequences, so nobody is surprised late
 - **Therefore: pause the old Supabase project, do not delete it.** It is the only copy of
   the history, and pausing keeps it recoverable if that judgement is ever revisited.
 
-### Remaining — the cutover
+### Cutover complete (2026-09-14)
 
-1. Re-point `TRACKER_DB_URL` in this project's Vercel environment at the Edge8 project's
-   **transaction** pooler (port 6543) and redeploy.
-2. `GET /api/health` — it lists the tables it can see; expect the same ten names.
-3. Have someone with `tracker status` green `git clone` a tracked repo. It must not prompt
-   for a password. This is the real test that the keys carried over.
-4. Watch for the first `push` webhook to land in the new `webhook_deliveries`.
-5. After a few green days, **pause** (not delete) the `human-token-tracker` project.
+Everything now runs on the Edge8 Company Database. In order, with what each step taught:
 
-Engineers do nothing. Keys, installations and repo config all moved, so no one re-runs
-`tracker setup` and no one needs a new key. If step 3 fails, re-point `TRACKER_DB_URL` back
-at the old project; the fix is server-side and engineers are not involved either way.
+1. **`TRACKER_DB_URL` re-pointed** at the Edge8 transaction pooler (2026-09-11). Git token
+   minting moved immediately — the first real proof was two live tokens minted against the
+   new database within fifteen minutes.
+2. **The webhook URL was still pointing somewhere else.** Token minting had moved but
+   webhooks had not, so `push_events` and `work_spans` — the actual measurement — kept
+   being written to the old project for three more days while everything looked healthy.
+   The cause: a **second deployment of this repo on a different Vercel account**
+   (`edge8-github-app-tracker.vercel.app`, personal), which the GitHub App's webhook URL
+   pointed at and which still held the old `TRACKER_DB_URL`. Found by reading
+   `webhook_deliveries.headers`, which records the `host` and `x-vercel-deployment-url` of
+   every delivery. Fixed by pointing the App at the `-kappa` deployment.
+3. **A duplicate GitHub App was retired.** Two Apps were created two hours apart on
+   2026-07-08 — `4246569` (installed on a personal account, one webhook event in its whole
+   life) and `4247933` (installed on `talentedgeai`, everything since). `4246569` is gone,
+   and its orphaned installation row was deleted from both databases.
+4. **The service got its own database role** — see [Database credentials](#database-credentials).
+
+Engineers did nothing for the database move: keys, installations and repo config all
+carried over, so nobody re-ran `tracker setup` and nobody needed a new key. Engineers
+**do** need to act on the telemetry plugin — see
+[For engineers: get on the current version](#for-engineers-get-on-the-current-version).
+
+### Database credentials
+
+The service connects as **`tracker_app`**, not `postgres`. Provisioned by
+`supabase/migrations/0003_tracker_app_role.sql`; the password lives only in `TRACKER_DB_URL`
+in Vercel and is written down nowhere in this repo.
+
+Why it exists: on 2026-09-14 the `postgres` password was rotated and the tracker went down —
+every request 500'd with `28P01 password authentication failed`, so **git token minting
+stopped for the whole team** until the env var caught up. Connecting as `postgres` also gave
+the tracker `rolbypassrls` across a database it shares with `company_os` and `htt`, when it
+only ever touches one schema.
+
+| role | scope |
+|---|---|
+| `tracker_app` | `select/insert/update/delete` on schema `tracker` only. No `rolbypassrls`, no `createrole`, no access to `htt` or `company_os` (the `engineer_keys` view reaches `htt` under its owner's rights, which is the one intended door). |
+
+**Adding a table to `tracker`? Just write the `CREATE TABLE`.** A new table would otherwise
+be invisible to the service until it had both a grant and an RLS policy for `tracker_app` —
+and that failure is silent, because RLS filters rather than raising, so it reads as missing
+data rather than a permissions bug. Instead of leaving that as a rule to remember, an event
+trigger (`tracker_app_autogrant`, in `0003`) applies the grant, RLS and the policy at
+creation time. Verified by creating a table and writing to it as `tracker_app` with no
+manual setup. The manual equivalent is in `0003` if you ever need it.
+
+Rotating the `postgres` password no longer affects this service. `SUPABASE_DB_URL` in
+**edge8-web**'s repository secrets was given the same treatment — a read-only `types_ro`
+role for the `check:types-fresh` CI job.
 
 Why no code changes: `src/db-pg.ts` rewrites every bare table name to `tracker.<name>`, so
 the schema name is the only thing it depends on. Plan:

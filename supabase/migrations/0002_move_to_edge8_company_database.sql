@@ -164,6 +164,14 @@ alter view tracker.engineer_keys alter column status set default 'active';
 -- RLS deny-all, as on the original host. The API connects as the table owner
 -- (owner bypasses RLS); PostgREST/anon/authenticated get nothing, because no
 -- policies exist and this schema is not in the exposed list.
+--
+-- SUPERSEDED IN PART BY 0003_tracker_app_role.sql (2026-09-14): the API no
+-- longer connects as the owner. It connects as `tracker_app`, which does NOT
+-- bypass RLS, so each table below also carries a permissive policy for that
+-- role. Consequence for anyone adding a table to this schema later: it needs a
+-- grant AND a policy for `tracker_app` or the service reads ZERO ROWS from it —
+-- silently, because RLS filters rather than raising. 0003 has the exact
+-- statements to paste alongside your CREATE TABLE.
 alter table tracker.webhook_deliveries enable row level security;
 alter table tracker.git_access_events  enable row level security;
 alter table tracker.app_installations  enable row level security;
