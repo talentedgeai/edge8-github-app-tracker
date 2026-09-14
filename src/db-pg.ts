@@ -18,6 +18,7 @@ const TABLES = [
   "capture_flags",
   "projects",
   "app_tokens",
+  "admin_keys",
 ];
 const TABLE_RE = new RegExp(`\\b(?<!\\.)(${TABLES.join("|")})\\b`, "g");
 const qualify = (sql: string): string => sql.replace(TABLE_RE, "tracker.$1");

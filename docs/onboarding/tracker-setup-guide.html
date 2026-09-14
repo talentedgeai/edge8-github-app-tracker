@@ -147,6 +147,7 @@
         <li>Installs the tracker (<code>npm i -g</code>)</li>
         <li>Activates it with the key (<code>tracker setup</code>)</li>
         <li>Works normally — git access &amp; tracking are automatic</li>
+        <li><strong>Installs the telemetry plugin</strong> (2.0.1+) and restarts Claude Code — <strong>B4</strong>, and easy to miss</li>
       </ol>
     </div>
   </div>
@@ -197,15 +198,19 @@
   <div class="step">
     <div class="step-num admin-num">1</div>
     <div class="step-body">
-      <h3>What you need: the admin token</h3>
-      <p>Key creation is guarded by the <code>ADMIN_TOKEN</code> — a live secret (its home is
-         <strong>Vercel → project settings → Environment Variables</strong>). The current value for
-         this instance — use it wherever the commands below say <code>YOUR_ADMIN_TOKEN</code>:</p>
-      <pre><code>ADMIN_TOKEN = DhzMI2qGCa</code></pre>
+      <h3>What you need: your own admin key</h3>
+      <p>Key creation is guarded by a <strong>per-admin key</strong> that you hold personally — an
+         <code>e8a_&lt;id&gt;_&lt;secret&gt;</code> value. Use it wherever the commands below say
+         <code>YOUR_ADMIN_TOKEN</code>. Do not have one yet? An existing admin issues it with
+         <code>POST /api/admin/keys?target=admin</code>, or it is minted once against the database with
+         <code>npm run mint-admin-key -- --email you@edge8.ai</code>.</p>
       <div class="warn-box">⚠️ <strong>This is a live secret — handle with care.</strong> Anyone holding it can
       mint keys that reach <strong>every tracked repo in every covered org</strong>. Admins only: never share it
-      with engineers, never paste it into group chats or client code. If it leaks or an admin leaves,
-      rotate it immediately (set a new value in Vercel env → redeploy → update this guide and the README).</div>
+      with engineers, never paste it into group chats or client code. It is shown once at issue and never
+      stored, so it cannot be looked up — if it is lost or an admin leaves, revoke that one key
+      (<code>DELETE /api/admin/keys?target=admin</code>) and issue a new one. No one else is affected.
+      <br><br>Until 2026-09-14 this was a single shared <code>ADMIN_TOKEN</code> whose value was printed in
+      this guide; treat that value as compromised, since it is in git history.</div>
     </div>
   </div>
 </div>
@@ -392,6 +397,54 @@ npm i -g ./tracker.tgz</code></pre>
       <pre><code>git clone https://github.com/talentedgeai/REPO-NAME.git</code></pre>
       <p class="expect">✔ The project downloads into a folder — <strong>without asking you for any username or password</strong>. That silence is the tracker doing its job.</p>
       <div class="warn-box">⚠️ If a login window pops up asking for a GitHub password, something's off — see Troubleshooting below.</div>
+    </div>
+  </div>
+</div>
+
+<h2>B4 — Install the effort telemetry plugin</h2>
+
+<div class="card">
+  <div class="step">
+    <div class="step-num">7</div>
+    <div class="step-body">
+      <h3>This is a second, separate thing — and it is easy to miss</h3>
+      <p>Steps B1–B3 set up the <strong>tracker CLI</strong>, which handles git. Your Claude Code
+         <em>effort</em> is reported by a different piece: the <strong>edge8-telemetry plugin</strong>.
+         They are independent, and <strong>one working tells you nothing about the other</strong> —
+         <code>tracker status</code> can be perfectly green while none of your sessions are counted.</p>
+      <p>Paste the whole block; every line is safe to re-run:</p>
+      <pre><code>claude plugin marketplace add talentedgeai/edge8-telemetry
+claude plugin marketplace update edge8
+claude plugin update edge8-telemetry@edge8
+claude plugin install edge8-telemetry@edge8</code></pre>
+      <p>Then <strong>restart Claude Code</strong> — an update does not apply to a session that is
+         already running. Confirm the version:</p>
+      <pre><code>claude plugin list | grep -A1 edge8-telemetry</code></pre>
+      <p class="expect">✔ <strong>2.0.1 or later.</strong> The version prints on the line <em>below</em> the
+         plugin name. A red <code>✘ ... not found</code> from the <code>update</code> line is expected on a
+         machine that never had the plugin — the <code>install</code> on the next line is the one that counts.</p>
+      <div class="warn-box">🪟 <strong>On Windows, 2.0.1 is mandatory — and the symptom of 2.0.0 is that
+      there is no symptom.</strong> It captured your sessions into a queue that could never be delivered,
+      while reporting itself perfectly healthy. Nothing queued is lost: updating delivers the whole
+      backlog on the first run. macOS and Linux were unaffected.</div>
+      <p>Your <code>e8k_</code> key does double duty here — the same key that mints your git tokens also
+         authenticates your telemetry. There is no second credential to ask for.</p>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="step">
+    <div class="step-num">8</div>
+    <div class="step-body">
+      <h3>Check your sessions are actually arriving</h3>
+      <p>Inside Claude Code, run:</p>
+      <pre><code>/edge8-telemetry</code></pre>
+      <p class="expect">✔ Consent granted · a delivery key · this repo registered · and — the line that
+         actually proves delivery — a non-zero <strong>"sessions stored"</strong> from the tracker.</p>
+      <div class="warn-box">⚠️ <strong>An outbox count that never falls means capture is fine and delivery
+      is not.</strong> "N sessions awaiting delivery" on its own is not success. If it does not drop to 0
+      after you finish a session, tell an admin rather than assuming it will sort itself out.</div>
     </div>
   </div>
 </div>

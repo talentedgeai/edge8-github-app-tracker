@@ -162,11 +162,57 @@ export async function handleHealth(): Promise<HandlerResult> {
 }
 
 // --- Admin: manage engineer keys over HTTP (so keys can be issued after deploy,
-// with no DB access). Gated by ADMIN_TOKEN (a high-entropy secret env var). ---
-function adminAuthed(presented: string): boolean {
-  const secret = process.env.ADMIN_TOKEN;
-  if (!secret) return false; // fail closed — no admin token configured, deny all
-  return secretEqual(presented, secret);
+// with no DB access). ---
+//
+// Gated by a per-admin key in `admin_keys`, hashed the same way engineer keys
+// are. The previous gate was a single shared ADMIN_TOKEN env var, which could
+// not say who issued a key and could not cut off one admin without rotating for
+// everyone. See supabase/migrations/0004_admin_keys.sql.
+export interface AdminActor {
+  key_id: string;
+  member: string;
+  /** True when the caller used the legacy shared env token rather than a key. */
+  legacy: boolean;
+}
+
+/**
+ * Resolve the caller to an admin, or null.
+ *
+ * ADMIN_TOKEN still works, deliberately: it is the bootstrap path. A fresh
+ * deployment has an empty admin_keys table, and without a fallback there would
+ * be no way to mint the first admin key without direct database access. It is
+ * meant to be removed from the environment once real keys are issued — every
+ * use logs a warning naming that, so a lingering one is visible rather than
+ * quietly permanent.
+ */
+async function adminActor(presented: string): Promise<AdminActor | null> {
+  if (!presented) return null;
+
+  // A real admin key first, so the legacy path cannot shadow a revoked one.
+  const keyId = presented.split("_").slice(0, 2).join("_"); // "e8a_<id>"
+  const rec = await db.get(
+    `SELECT key_id, member, key_hash FROM admin_keys WHERE key_id = ? AND status = 'active'`,
+    keyId,
+  );
+  if (rec) {
+    const hash = crypto.createHash("sha256").update(presented).digest("hex");
+    if (!secretEqual(hash, rec.key_hash ?? "")) return null;
+    await db.run(
+      `UPDATE admin_keys SET last_used_at = ? WHERE key_id = ?`,
+      new Date().toISOString(),
+      rec.key_id,
+    );
+    return { key_id: rec.key_id, member: rec.member, legacy: false };
+  }
+
+  const shared = process.env.ADMIN_TOKEN;
+  if (!shared) return null; // fail closed — nothing configured, deny all
+  if (!secretEqual(presented, shared)) return null;
+  console.warn(
+    "[admin] authenticated with the shared ADMIN_TOKEN. Mint per-admin keys " +
+      "(npm run mint-admin-key) and remove ADMIN_TOKEN from the environment.",
+  );
+  return { key_id: "shared", member: "ADMIN_TOKEN", legacy: true };
 }
 
 // method GET -> list (no secrets) | POST {email} -> create (returns key once)
@@ -176,25 +222,35 @@ export async function handleAdminKeys(
   method: string,
   params: any,
 ): Promise<HandlerResult> {
-  if (!adminAuthed(adminToken)) return { status: 401, json: { error: "unauthorized" } };
+  const actor = await adminActor(adminToken);
+  if (!actor) return { status: 401, json: { error: "unauthorized" } };
+
+  // `?target=admin` manages admin keys themselves; the default stays engineer
+  // keys so every existing runbook command keeps working unchanged.
+  const table = String(params?.target ?? "") === "admin" ? "admin_keys" : "engineer_keys";
+  const prefix = table === "admin_keys" ? "e8a" : "e8k";
 
   if (method === "GET") {
     const keys = await db.all(
-      `SELECT key_id, member, status, issued_at FROM engineer_keys ORDER BY issued_at`,
+      `SELECT key_id, member, status, issued_at FROM ${table} ORDER BY issued_at`,
     );
     return { status: 200, json: { keys } };
   }
   if (method === "POST") {
     const email = String(params?.email ?? "").trim();
     if (!email.includes("@")) return { status: 400, json: { error: "email required" } };
-    const keyId = `e8k_${crypto.randomBytes(4).toString("hex")}`;
+    const keyId = `${prefix}_${crypto.randomBytes(4).toString("hex")}`;
     const full = `${keyId}_${crypto.randomBytes(24).toString("hex")}`;
     const hash = crypto.createHash("sha256").update(full).digest("hex");
     await db.run(
-      `INSERT INTO engineer_keys (key_id, key_hash, member, status) VALUES (?,?,?,'active')`,
+      `INSERT INTO ${table} (key_id, key_hash, member, status) VALUES (?,?,?,'active')`,
       keyId,
       hash,
       email,
+    );
+    // The attribution the shared token could never give: who issued what.
+    console.log(
+      `[admin] ${actor.member} (${actor.key_id}) issued ${table} ${keyId} for ${email}`,
     );
     return {
       status: 201,
@@ -204,7 +260,12 @@ export async function handleAdminKeys(
   if (method === "DELETE") {
     const keyId = String(params?.key_id ?? "").trim();
     if (!keyId) return { status: 400, json: { error: "key_id required" } };
-    await db.run(`UPDATE engineer_keys SET status = 'revoked' WHERE key_id = ?`, keyId);
+    // Revoking your own admin key would lock you out mid-session with no signal.
+    if (table === "admin_keys" && keyId === actor.key_id) {
+      return { status: 400, json: { error: "refusing to revoke the key you are authenticating with" } };
+    }
+    await db.run(`UPDATE ${table} SET status = 'revoked' WHERE key_id = ?`, keyId);
+    console.log(`[admin] ${actor.member} (${actor.key_id}) revoked ${table} ${keyId}`);
     return { status: 200, json: { key_id: keyId, status: "revoked" } };
   }
   return { status: 405, json: { error: "method not allowed" } };

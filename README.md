@@ -19,7 +19,7 @@ Open items as of 2026-09-14, roughly in priority order. Ticked off in the sectio
 
 | | item | why it matters |
 |---|---|---|
-| 🔴 | **`ADMIN_TOKEN` is in this file in plaintext** (see [Environment variables](#environment-variables-vercel--project--settings--environment-variables)) | it mints engineer keys reaching every tracked repo in every covered org. Rotate it, and move it out of the repo before this is ever shared externally. |
+| 🔴 | **The old shared `ADMIN_TOKEN` value is in git history** — it was committed in three files (this one, `docs/onboarding/CLAUDE-SETUP.md`, `docs/onboarding/tracker-setup-guide.html`) | it mints engineer keys reaching every tracked repo in every covered org. The plaintext copies are gone, but deleting them does not unpublish it: **rotate or remove it in Vercel**. Per-admin keys have replaced it — see [Admin keys](#admin-keys). |
 | 🟠 | **Every Windows engineer is invisible** until they update to edge8-telemetry **2.0.1** | 2.0.0 captured into a queue that could never drain and reported itself healthy. Their backlog returns on update. See [For engineers](#for-engineers-get-on-the-current-version). |
 | 🟠 | **The old Supabase project (`human-token-tracker`) still holds all capture history** | 15,078 `push_events` and 984 `work_spans` did not come across. **Pause it, do not delete it.** |
 | 🟡 | **The duplicate Vercel deployment should be deleted** — `edge8-github-app-tracker.vercel.app`, on a personal account | it held a stale `TRACKER_DB_URL` and silently took the webhooks for three days. While it exists the split can recur. |
@@ -252,7 +252,7 @@ Header `x-edge8-key`
 ```
 
 ### `POST /api/admin/keys` — create a key
-Header `x-admin-token: <ADMIN_TOKEN>`
+Header `x-admin-token: <your e8a_ admin key>`
 ```jsonc
 // request
 { "email": "engineer@edge8.ai" }
@@ -295,24 +295,45 @@ Header `x-admin-token`
 | `WEBHOOK_SECRET` | must equal the App's *Webhook secret* |
 | `GITHUB_APP_PRIVATE_KEY` | full `.pem` content (multi-line) |
 | `TRACKER_DB_URL` | Supabase **transaction pooler** URI (port **6543**), as role **`tracker_app`** — *not* `postgres` (see [Database credentials](#database-credentials)) |
-| `ADMIN_TOKEN` | secret guarding `/api/admin/keys` |
+| `ADMIN_TOKEN` | **legacy bootstrap only.** `/api/admin/keys` is authenticated by per-admin keys in `tracker.admin_keys`; this env var still works so a fresh deployment can mint its first one. Delete it once every admin holds a key — see [Admin keys](#admin-keys) |
 
-> ⚠️ **Security warning — live secret below.** `ADMIN_TOKEN` guards `/api/admin/keys`: anyone
-> holding it can mint engineer keys that reach **every tracked repo in every covered org**.
-> It is recorded here because admins need it to run this runbook, and this repo is private —
-> but treat it accordingly:
+### Admin keys
+
+`/api/admin/keys` is authenticated with a **per-admin key** (`e8a_<id>_<secret>`) that you
+hold personally — not a shared value stored in this repo. Keys are hashed in
+`tracker.admin_keys` exactly as engineer keys are: the secret is shown once at issue and
+never stored, so a leak of that table yields nothing usable.
+
+Mint the first one against the database, then manage the rest over HTTP:
+
+```bash
+npm run mint-admin-key -- --email you@edge8.ai         # bootstrap, once
+```
+
+```bash
+export ADMIN_KEY=e8a_xxxxxxxx_...                      # bash
+$env:ADMIN_KEY = "e8a_xxxxxxxx_..."                    # PowerShell
+```
+
+| action | call |
+|---|---|
+| list admins | `GET /api/admin/keys?target=admin` |
+| add an admin | `POST /api/admin/keys?target=admin` `{"email":"them@edge8.ai"}` |
+| revoke an admin | `DELETE /api/admin/keys?target=admin` `{"key_id":"e8a_xxxxxxxx"}` |
+
+Every issue and revoke logs the acting `key_id` and member, so an engineer key can be traced
+to whoever created it. Revoking the key you are authenticating with is refused.
+
+> ⚠️ **The old shared `ADMIN_TOKEN` value must be treated as compromised.** Until 2026-09-14
+> it was written in plaintext in this file and in `docs/onboarding/CLAUDE-SETUP.md`, so it is
+> in every clone and in git history — deleting the lines does not unpublish it. Rotate or
+> remove it.
 >
-> - **Never** share it outside the admin group, paste it into chat tools, or use it in client code.
-> - If it leaks (or an admin leaves): **rotate immediately** — set a new value in Vercel env →
->   redeploy → update this line and the local `.env`.
-> - **Remove this value from the file before the repo is ever made public or shared externally.**
->
-> ```
-> ADMIN_TOKEN = DhzMI2qGCa
-> ```
->
-> The commands below read it from a shell variable: `export ADMIN_TOKEN=...` (bash) /
-> `$env:ADMIN_TOKEN = "..."` (PowerShell).
+> `ADMIN_TOKEN` still authenticates, on purpose: it is the bootstrap path for a fresh
+> deployment whose `admin_keys` table is empty, since otherwise there would be no way to mint
+> the first admin key without database access. **Delete it from the Vercel environment once
+> every admin holds a key.** Each use logs a warning naming that, so a lingering one stays
+> visible instead of quietly becoming permanent.
 
 > **An engineer key now authenticates two things.** Since edge8-telemetry 2.0.0,
 > the same `e8k_` key a machine uses to mint git tokens also authenticates that
@@ -324,15 +345,15 @@ Header `x-admin-token`
 ### Issue a key (for a new engineer)
 ```bash
 curl -X POST https://edge8-github-app-tracker-kappa.vercel.app/api/admin/keys \
-  -H "x-admin-token: $ADMIN_TOKEN" -H "content-type: application/json" \
+  -H "x-admin-token: $ADMIN_KEY" -H "content-type: application/json" \
   -d '{"email":"engineer@edge8.ai"}'
 # → copy the "key" value from the response and send it to the engineer privately
 ```
 List / revoke:
 ```bash
-curl https://edge8-github-app-tracker-kappa.vercel.app/api/admin/keys -H "x-admin-token: $ADMIN_TOKEN"
+curl https://edge8-github-app-tracker-kappa.vercel.app/api/admin/keys -H "x-admin-token: $ADMIN_KEY"
 curl -X DELETE https://edge8-github-app-tracker-kappa.vercel.app/api/admin/keys \
-  -H "x-admin-token: $ADMIN_TOKEN" -H "content-type: application/json" -d '{"key_id":"e8k_xxxxxxxx"}'
+  -H "x-admin-token: $ADMIN_KEY" -H "content-type: application/json" -d '{"key_id":"e8k_xxxxxxxx"}'
 ```
 
 ### GitHub App
