@@ -23,7 +23,7 @@ Open items as of 2026-09-14, roughly in priority order. Ticked off in the sectio
 | 🟠 | **Every Windows engineer is invisible** until they update to edge8-telemetry **2.0.1** | 2.0.0 captured into a queue that could never drain and reported itself healthy. Their backlog returns on update. See [For engineers](#for-engineers-get-on-the-current-version). |
 | 🟠 | **The old Supabase project (`human-token-tracker`) still holds all capture history** | 15,078 `push_events` and 984 `work_spans` did not come across. **Pause it, do not delete it.** |
 | 🟡 | **The duplicate Vercel deployment should be deleted** — `edge8-github-app-tracker.vercel.app`, on a personal account | it held a stale `TRACKER_DB_URL` and silently took the webhooks for three days. While it exists the split can recur. |
-| 🟡 | **A new `tracker` table needs a grant + RLS policy for `tracker_app`** | otherwise the service reads zero rows from it, silently. See [Database credentials](#database-credentials). |
+| 🟢 | ~~A new `tracker` table needs a grant + RLS policy~~ — **now automatic** | an event trigger applies both at `CREATE TABLE`. See [Database credentials](#database-credentials). |
 | 🟢 | `htt.engineer_keys` has 15 keys, all active — none has ever been revoked | worth an audit when someone leaves; revoking cuts git access and telemetry in one action. |
 
 Production: **Vercel** (Node serverless, `api/*`) + **Supabase Postgres** (schema `tracker`).
@@ -435,10 +435,13 @@ only ever touches one schema.
 |---|---|
 | `tracker_app` | `select/insert/update/delete` on schema `tracker` only. No `rolbypassrls`, no `createrole`, no access to `htt` or `company_os` (the `engineer_keys` view reaches `htt` under its owner's rights, which is the one intended door). |
 
-> ⚠️ **Adding a table to `tracker`?** It needs **both** a grant and an RLS policy for
-> `tracker_app`, or the service reads **zero rows** from it — silently, because RLS filters
-> instead of raising, so it looks like missing data rather than a permissions bug.
-> `0003_tracker_app_role.sql` has the two statements to paste next to your `CREATE TABLE`.
+**Adding a table to `tracker`? Just write the `CREATE TABLE`.** A new table would otherwise
+be invisible to the service until it had both a grant and an RLS policy for `tracker_app` —
+and that failure is silent, because RLS filters rather than raising, so it reads as missing
+data rather than a permissions bug. Instead of leaving that as a rule to remember, an event
+trigger (`tracker_app_autogrant`, in `0003`) applies the grant, RLS and the policy at
+creation time. Verified by creating a table and writing to it as `tracker_app` with no
+manual setup. The manual equivalent is in `0003` if you ever need it.
 
 Rotating the `postgres` password no longer affects this service. `SUPABASE_DB_URL` in
 **edge8-web**'s repository secrets was given the same treatment — a read-only `types_ro`

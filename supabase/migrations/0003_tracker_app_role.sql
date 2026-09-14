@@ -17,16 +17,20 @@
 -- After this migration nothing the tracker does depends on the `postgres`
 -- password, so rotating it is a non-event.
 --
--- ── THE RULE FOR FUTURE MIGRATIONS ──────────────────────────────────────────
--- A new table in `tracker` is INVISIBLE to the running service until it has
--- BOTH a grant and an RLS policy for `tracker_app`. The grants below are not
--- `ALTER DEFAULT PRIVILEGES`, and RLS is enabled with no catch-all policy, so a
--- table added later gets neither automatically.
+-- ── NEW TABLES ARE HANDLED AUTOMATICALLY ────────────────────────────────────
+-- A new table in `tracker` would otherwise be INVISIBLE to the running service
+-- until it had BOTH a grant and an RLS policy for `tracker_app` — and the
+-- failure is quiet and easy to misread, because with RLS on and no matching
+-- policy a SELECT returns ZERO ROWS rather than raising. It reads as missing
+-- data, not a permissions bug.
 --
--- The failure is quiet and easy to misread: with RLS on and no matching policy,
--- SELECT returns ZERO ROWS rather than raising — so it looks like missing data,
--- not a permissions bug. Whenever you add a table to `tracker`, add this
--- alongside the CREATE TABLE:
+-- Rather than leave that as a rule people have to remember, the event trigger
+-- at the bottom of this file does it: every `CREATE TABLE` in schema `tracker`
+-- gets the grant, RLS enabled, and the policy, at the moment it is created. You
+-- write a plain CREATE TABLE and nothing else.
+--
+-- If you ever need to do it by hand (the trigger was dropped, or you are on a
+-- database that predates it), it is these two statements:
 --
 --   grant select, insert, update, delete on tracker.<new_table> to tracker_app;
 --   create policy tracker_app_all on tracker.<new_table>
@@ -81,3 +85,35 @@ begin
       t.relname);
   end loop;
 end $$;
+
+-- Keep it that way without anyone having to remember. Every CREATE TABLE in
+-- schema `tracker` gets the grant, RLS, and the policy at creation time.
+--
+-- security definer so the trigger runs with this file's authority rather than
+-- the caller's; it is narrow by construction — it only ever acts on tables in
+-- schema `tracker`, and only ever grants to `tracker_app`.
+create or replace function tracker.autogrant_app_on_new_table()
+returns event_trigger language plpgsql security definer as $fn$
+declare obj record;
+begin
+  for obj in select * from pg_event_trigger_ddl_commands() loop
+    if obj.object_type = 'table' and obj.schema_name = 'tracker' then
+      execute format('grant select, insert, update, delete on %s to tracker_app', obj.object_identity);
+      execute format('alter table %s enable row level security', obj.object_identity);
+      execute format('drop policy if exists tracker_app_all on %s', obj.object_identity);
+      execute format('create policy tracker_app_all on %s as permissive for all to tracker_app using (true) with check (true)', obj.object_identity);
+      -- An identity column's sequence is created with the table, and INSERT
+      -- needs it; re-granting across the schema is cheap and catches it.
+      execute 'grant usage, select on all sequences in schema tracker to tracker_app';
+      raise notice 'tracker_app: granted + policy on %', obj.object_identity;
+    end if;
+  end loop;
+end $fn$;
+
+drop event trigger if exists tracker_app_autogrant;
+create event trigger tracker_app_autogrant on ddl_command_end
+  when tag in ('CREATE TABLE')
+  execute function tracker.autogrant_app_on_new_table();
+
+comment on function tracker.autogrant_app_on_new_table() is
+  'Event-trigger body: gives tracker_app access to every new table in schema tracker at creation time, so a plain CREATE TABLE is all a later migration needs. Verified 2026-09-14 by creating a table and writing to it as tracker_app with no manual setup.';
