@@ -19,9 +19,21 @@ plain sentence per step, never paste raw logs at them, and do every technical st
   3. send both to engineer                 5. tracker status   → 4 green lines = counted
                                            6. git clone/pull/push on tracked repos
                                               → auto-authenticated + activity logged
+                                           ── and the OTHER half ──────────────
+                                           7. claude plugin install edge8-telemetry
+                                              (2.0.1+), restart Claude Code
+                                           8. /edge8-telemetry → "sessions stored" > 0
 ```
 
+**Two halves, and they are independent.** Steps 3–6 are the **tracker CLI** (git). Steps 7–8
+are the **edge8-telemetry plugin** (Claude Code effort). One working tells you nothing about
+the other — `tracker status` can be entirely green while no session is ever counted. A setup
+that stops at step 6 is half done, and fails silently.
+
 - Server: `https://edge8-github-app-tracker-kappa.vercel.app`
+- **One key covers both.** Since edge8-telemetry 2.0.0 the same `e8k_` key authenticates git
+  token minting *and* telemetry — so there is no second credential, and revoking a key stops
+  both in one action.
 - The tracker plugs into git's credential system. After setup, every `git clone/pull/push` on
   an Edge8-tracked GitHub repo authenticates with a short-lived installation token minted by
   the server. Personal/untracked repos are untouched (they fall through to the machine's
@@ -279,9 +291,47 @@ machine.
   re-run `tracker setup` right after. When in doubt, any time: `tracker status`.
 - how to undo it later: `tracker uninstall`
 
+### Step E — the effort telemetry plugin (do NOT stop before this)
+
+The steps above set up the **tracker CLI**, which covers git. Claude Code **effort** is
+reported by a separate piece — the **edge8-telemetry plugin**. They are independent, and one
+working tells you nothing about the other: `tracker status` can be fully green while not a
+single session is being counted. An engineer who stops at step D is half set up.
+
+Have the user paste the whole block (every line is safe to re-run):
+
+```bash
+claude plugin marketplace add talentedgeai/edge8-telemetry
+claude plugin marketplace update edge8
+claude plugin update edge8-telemetry@edge8
+claude plugin install edge8-telemetry@edge8
+```
+
+Then **restart Claude Code** — an update does not apply to an already-running session.
+Confirm with `claude plugin list | grep -A1 edge8-telemetry`; the version prints on the line
+*below* the name and must be **2.0.1 or later**. A red `✘ ... not found` from the `update`
+line is expected on a machine that never had the plugin — the `install` after it is the one
+that lands it.
+
+> 🪟 **On Windows 2.0.1 is mandatory, and the symptom of 2.0.0 is that there is no symptom.**
+> It captured sessions into a queue that could never drain while reporting the machine
+> healthy. Nothing queued is lost — updating delivers the backlog on the first flush.
+
+The engineer's `e8k_` key does double duty: the same key that mints git tokens authenticates
+telemetry. There is no second credential to issue.
+
+**Verify, and read the right line.** Have them run `/edge8-telemetry` inside Claude Code. You
+want consent granted, a delivery key, the repo registered, and — the only line that actually
+proves delivery — a non-zero **"sessions stored"**. An outbox count that never falls means
+capture works and delivery does not; "N sessions awaiting delivery" is not success. If it
+does not drop to 0 after a completed session, escalate rather than assuming it will resolve.
+
 ### Rollback
 
 If the user asks to remove everything: `tracker uninstall` — it removes only the tracker's
 entries (other credential helpers like `gh` are preserved) and deletes the helper scripts
 and token cache; the config file stays at `~/.edge8/config.json` — mention it so they can
 delete it manually if they want the key gone from the machine too.
+
+To stop telemetry as well, they run `/edge8-telemetry` and withdraw consent, or
+`claude plugin uninstall edge8-telemetry@edge8`.
