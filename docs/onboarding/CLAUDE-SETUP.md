@@ -57,18 +57,28 @@ Infer it from what they say, and confirm in one sentence:
 
 ### Inputs you need from the admin
 
-1. **`ADMIN_TOKEN`** — its home is the Vercel project's Environment Variables. Current value
-   for this instance, used for setup now:
-
-   ```
-   ADMIN_TOKEN = DhzMI2qGCa
-   ```
+1. **The admin's own key** — an `e8a_<id>_<secret>` value they hold personally. **Ask them
+   for it; never look it up, and never write it into any file.** It goes in the
+   `x-admin-token` header of the calls below and nowhere else.
 
    ⚠️ **Live secret.** It mints keys that reach every tracked repo in every covered org.
-   Use it only in the `x-admin-token` header of the calls below — never write it into other
-   files, never commit it elsewhere, never send it to engineers. If it leaks or an admin
-   leaves, tell the admin to rotate it (new value in Vercel env → redeploy → update this file
-   and the README). If the admin has a different/rotated token, theirs wins.
+   Never commit it, never send it to engineers, never paste it into a chat tool.
+
+   If the admin does not have one, they mint it once against the database:
+
+   ```bash
+   npm run mint-admin-key -- --email them@edge8.ai
+   ```
+
+   Thereafter admins mint each other's keys over HTTP with `?target=admin` (see
+   [Managing keys](#managing-keys-when-asked)).
+
+   > **Historical note.** Until 2026-09-14 this was one shared `ADMIN_TOKEN` whose value was
+   > written in this file and in the README. That value must be treated as compromised — it
+   > is in every clone and in git history. Per-admin keys replaced it so that issuance is
+   > attributable and one admin can be revoked without rotating for everyone. `ADMIN_TOKEN`
+   > still works as a bootstrap fallback and should be deleted from the Vercel environment
+   > once every admin holds a key.
 2. **The engineer's work email** (becomes the key's `member` identity for attribution).
 
 ### Steps
@@ -139,6 +149,17 @@ gh release download --repo talentedgeai/edge8-github-app-tracker --pattern "*.tg
 - **Revoke** (engineer offboarding — effective as soon as their last 60-min token expires):
   `DELETE /api/admin/keys` with body `{"key_id":"e8k_xxxxxxxx"}`. The `key_id` is the first
   two segments of the key, visible in the list response.
+
+**Admin keys** are managed through the same endpoint with `?target=admin`, so an admin can
+onboard and offboard another admin without database access:
+
+- List: `GET /api/admin/keys?target=admin`
+- Issue: `POST /api/admin/keys?target=admin` with body `{"email":"them@edge8.ai"}`
+- Revoke: `DELETE /api/admin/keys?target=admin` with body `{"key_id":"e8a_xxxxxxxx"}`
+
+Revoking your own key is refused — it would lock you out mid-session with no signal.
+Every issue and revoke is logged with the acting `key_id` and member, which is the
+attribution the shared token could never provide.
 
 ---
 

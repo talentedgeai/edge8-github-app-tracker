@@ -197,15 +197,19 @@
   <div class="step">
     <div class="step-num admin-num">1</div>
     <div class="step-body">
-      <h3>What you need: the admin token</h3>
-      <p>Key creation is guarded by the <code>ADMIN_TOKEN</code> — a live secret (its home is
-         <strong>Vercel → project settings → Environment Variables</strong>). The current value for
-         this instance — use it wherever the commands below say <code>YOUR_ADMIN_TOKEN</code>:</p>
-      <pre><code>ADMIN_TOKEN = DhzMI2qGCa</code></pre>
+      <h3>What you need: your own admin key</h3>
+      <p>Key creation is guarded by a <strong>per-admin key</strong> that you hold personally — an
+         <code>e8a_&lt;id&gt;_&lt;secret&gt;</code> value. Use it wherever the commands below say
+         <code>YOUR_ADMIN_TOKEN</code>. Do not have one yet? An existing admin issues it with
+         <code>POST /api/admin/keys?target=admin</code>, or it is minted once against the database with
+         <code>npm run mint-admin-key -- --email you@edge8.ai</code>.</p>
       <div class="warn-box">⚠️ <strong>This is a live secret — handle with care.</strong> Anyone holding it can
       mint keys that reach <strong>every tracked repo in every covered org</strong>. Admins only: never share it
-      with engineers, never paste it into group chats or client code. If it leaks or an admin leaves,
-      rotate it immediately (set a new value in Vercel env → redeploy → update this guide and the README).</div>
+      with engineers, never paste it into group chats or client code. It is shown once at issue and never
+      stored, so it cannot be looked up — if it is lost or an admin leaves, revoke that one key
+      (<code>DELETE /api/admin/keys?target=admin</code>) and issue a new one. No one else is affected.
+      <br><br>Until 2026-09-14 this was a single shared <code>ADMIN_TOKEN</code> whose value was printed in
+      this guide; treat that value as compromised, since it is in git history.</div>
     </div>
   </div>
 </div>

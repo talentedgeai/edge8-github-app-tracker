@@ -87,6 +87,19 @@ CREATE TABLE IF NOT EXISTS engineer_keys (
   issued_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Admin credentials for /api/admin/keys. Same shape as engineer_keys, but a
+-- separate table on purpose: engineer keys are distributed to every laptop in
+-- plaintext, so admin capability must not ride on them. See
+-- supabase/migrations/0004_admin_keys.sql.
+CREATE TABLE IF NOT EXISTS admin_keys (
+  key_id       TEXT PRIMARY KEY,
+  key_hash     TEXT NOT NULL,
+  member       TEXT NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'active',
+  issued_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  last_used_at TEXT
+);
+
 -- ===== Phase 2: derived tables, written ONLY by the mint engine =====
 
 CREATE TABLE IF NOT EXISTS work_spans (
