@@ -1,7 +1,7 @@
 {
   "name": "@edge8/tracker",
-  "version": "0.3.0",
-  "description": "edge8-tracker client: one-time setup of the git credential helper",
+  "version": "0.4.0",
+  "description": "edge8-tracker client: one-time setup of the git credential helper and Claude Code effort telemetry",
   "type": "module",
   "bin": {
     "tracker": "./bin/tracker.js"

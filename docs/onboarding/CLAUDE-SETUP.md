@@ -16,19 +16,22 @@ plain sentence per step, never paste raw logs at them, and do every technical st
      (POST /api/admin/keys)     privately
   2. download tracker.tgz                  3. npm i -g tracker.tgz
      from GitHub Releases                  4. tracker setup --key e8k_… --server …
-  3. send both to engineer                 5. tracker status   → 4 green lines = counted
-                                           6. git clone/pull/push on tracked repos
+  3. send both to engineer                    → wires git AND asks about effort telemetry,
+                                                installing the plugin if they say yes
+                                           5. restart Claude Code (the plugin is only live
+                                              in sessions started after it lands)
+                                           6. tracker status  → 5 lines; first 4 green =
+                                              counted, `effort` says telemetry's state
+                                           7. git clone/pull/push on tracked repos
                                               → auto-authenticated + activity logged
-                                           ── and the OTHER half ──────────────
-                                           7. claude plugin install edge8-telemetry
-                                              (2.0.1+), restart Claude Code
-                                           8. /edge8-telemetry → "sessions stored" > 0
 ```
 
-**Two halves, and they are independent.** Steps 3–6 are the **tracker CLI** (git). Steps 7–8
-are the **edge8-telemetry plugin** (Claude Code effort). One working tells you nothing about
-the other — `tracker status` can be entirely green while no session is ever counted. A setup
-that stops at step 6 is half done, and fails silently.
+**Two mechanisms, one command.** Git access is the **tracker CLI**; Claude Code effort is the
+**edge8-telemetry plugin**. At run time they are independent — one working tells you nothing
+about the other — but since CLI **0.4.0** a single `tracker setup` installs and wires both, so
+there is no longer a second half to forget. On an older CLI it is two separate jobs, and a
+setup that stopped after git was half done and failed silently; that is the failure this
+merge exists to kill.
 
 - Server: `https://edge8-github-app-tracker-kappa.vercel.app`
 - **One key covers both.** Since edge8-telemetry 2.0.0 the same `e8k_` key authenticates git
@@ -240,9 +243,29 @@ they become fallbacks for personal repos.
 Re-running setup is always safe and, once a machine is configured, needs **no flags**:
 plain `tracker setup` reuses the stored key/server from `~/.edge8/config.json`.
 
-Error handling — **first move for ANY problem in B4/B5 is `tracker status`** (four lines:
-helper wired / node / last mint / server+key; exit 0 = machine is counted; every ✘ line
-includes its own fix):
+**Setup then asks one question** — whether to also report Claude Code session effort. This
+is the plugin half, and it is **the engineer's call, not yours**: read them the question,
+let them answer, and do not answer it for them. Say yes and setup installs the
+`edge8-telemetry` plugin and records consent at `~/.claude/.il-telemetry/consent`; say no
+and it records the refusal, which they can reverse any time with `tracker setup --telemetry`.
+Answer it up front with `--telemetry` / `--no-telemetry` only when the engineer has already
+told you which they want. Two things that are **not** failures of B4:
+
+- **No Claude Code on this machine** — setup says so and moves on; git is still wired.
+- **A non-interactive shell** (no TTY, e.g. a provisioning script) — the question cannot be
+  asked, so it is treated as "not answered", consent is left unset, and no file is written.
+  Re-run `tracker setup --telemetry` from a real terminal.
+
+A plugin install that fails is likewise reported, not fatal, and leaves consent unset — so
+`tracker status` will never claim telemetry is on while nothing is capturing.
+
+After a successful install, **restart Claude Code**: a plugin does not attach to a session
+that is already running.
+
+Error handling — **first move for ANY problem in B4/B5 is `tracker status`** (five lines:
+helper wired / node / last mint / server+key / effort; exit 0 = machine is counted for git;
+the `effort` line reports telemetry but does not affect the exit code; every ✘ line includes
+its own fix):
 - `key rejected by the server (401)` → the key is wrong or revoked. Ask the user to re-paste
   it (it is long and easy to truncate). Two failures → stop, tell them to request a fresh key
   from their admin.
@@ -262,8 +285,12 @@ includes its own fix):
 tracker status
 ```
 
-Expected: four ✔/– lines and `all checks passed — this machine is being counted ✔` (exit 0).
-Any ✘ line names the problem and the fix (usually: re-run `tracker setup`).
+Expected: five ✔/– lines and `all checks passed — this machine is being counted ✔` (exit 0).
+Any ✘ line names the problem and the fix (usually: re-run `tracker setup`). The last line,
+`effort`, reports the telemetry half — ON, or OFF with the reason (`declined` /
+`never set up`) — and is
+deliberately outside the verdict, because declining is a legitimate answer and must not make
+`tracker status` fail.
 
 Then, if possible, prove the loop end-to-end with an **authenticated** git operation on a
 **private tracked repo** (public-repo clones never invoke a credential helper). If the user
@@ -291,14 +318,23 @@ machine.
   re-run `tracker setup` right after. When in doubt, any time: `tracker status`.
 - how to undo it later: `tracker uninstall`
 
-### Step E — the effort telemetry plugin (do NOT stop before this)
+### Step E — confirm the effort telemetry half landed
 
-The steps above set up the **tracker CLI**, which covers git. Claude Code **effort** is
-reported by a separate piece — the **edge8-telemetry plugin**. They are independent, and one
-working tells you nothing about the other: `tracker status` can be fully green while not a
-single session is being counted. An engineer who stops at step D is half set up.
+Claude Code **effort** is reported by the **edge8-telemetry plugin**, which B4 installed if
+the engineer said yes. There is nothing more to install — this step is verification, plus
+the recovery path if B4's telemetry question went unanswered or its install failed.
 
-Have the user paste the whole block (every line is safe to re-run):
+`tracker status` line 5 (`effort`) is the quick read. If it says ON, skip to the delivery
+check below. If it says OFF:
+
+- **`never set up`** — the question was never answered (non-interactive shell, or Claude
+  Code was not on PATH at the time). Fix: `tracker setup --telemetry`, then restart Claude
+  Code.
+- **`declined`** — they said no. That is a real answer; do **not** override it. Mention once
+  that `tracker setup --telemetry` reverses it, and leave it there.
+
+<details>
+<summary>The manual install, for a machine on tracker CLI &lt; 0.4.0</summary>
 
 ```bash
 claude plugin marketplace add talentedgeai/edge8-telemetry
@@ -307,11 +343,16 @@ claude plugin update edge8-telemetry@edge8
 claude plugin install edge8-telemetry@edge8
 ```
 
-Then **restart Claude Code** — an update does not apply to an already-running session.
-Confirm with `claude plugin list | grep -A1 edge8-telemetry`; the version prints on the line
-*below* the name and must be **2.0.1 or later**. A red `✘ ... not found` from the `update`
-line is expected on a machine that never had the plugin — the `install` after it is the one
-that lands it.
+Then write `granted` — exactly that word, nothing else — to
+`~/.claude/.il-telemetry/consent`; the plugin reads that file and nothing else, and any
+other content counts as "not consented". A red `✘ ... not found` from the `update` line is
+expected on a machine that never had the plugin; the `install` after it lands it. Upgrading
+the CLI instead is the better fix.
+</details>
+
+Either way, **restart Claude Code** — a plugin does not attach to an already-running
+session. The version must be **2.0.1 or later**; confirm with
+`claude plugin list | grep -A1 edge8-telemetry`, where it prints on the line *below* the name.
 
 > 🪟 **On Windows 2.0.1 is mandatory, and the symptom of 2.0.0 is that there is no symptom.**
 > It captured sessions into a queue that could never drain while reporting the machine
@@ -320,11 +361,11 @@ that lands it.
 The engineer's `e8k_` key does double duty: the same key that mints git tokens authenticates
 telemetry. There is no second credential to issue.
 
-**Verify, and read the right line.** Have them run `/edge8-telemetry` inside Claude Code. You
-want consent granted, a delivery key, the repo registered, and — the only line that actually
-proves delivery — a non-zero **"sessions stored"**. An outbox count that never falls means
-capture works and delivery does not; "N sessions awaiting delivery" is not success. If it
-does not drop to 0 after a completed session, escalate rather than assuming it will resolve.
+**Verify delivery, and read the right line.** Have them run `/edge8-telemetry` inside Claude
+Code. You want consent granted, a delivery key, the repo registered, and — the only line that
+actually proves delivery — a non-zero **"sessions stored"**. An outbox count that never falls
+means capture works and delivery does not; "N sessions awaiting delivery" is not success. If
+it does not drop to 0 after a completed session, escalate rather than assuming it will resolve.
 
 ### Rollback
 

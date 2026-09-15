@@ -145,9 +145,9 @@
       <ol>
         <li>Installs Node.js + Git — see <a href="#part-b">Part B</a></li>
         <li>Installs the tracker (<code>npm i -g</code>)</li>
-        <li>Activates it with the key (<code>tracker setup</code>)</li>
+        <li>Activates it with the key (<code>tracker setup</code>) — this also offers to turn on effort telemetry and installs that plugin for you</li>
+        <li>Restarts Claude Code, so the telemetry plugin attaches</li>
         <li>Works normally — git access &amp; tracking are automatic</li>
-        <li><strong>Installs the telemetry plugin</strong> (2.0.1+) and restarts Claude Code — <strong>B4</strong>, and easy to miss</li>
       </ol>
     </div>
   </div>
@@ -401,55 +401,26 @@ npm i -g ./tracker.tgz</code></pre>
   </div>
 </div>
 
-<h2>B4 — Install the effort telemetry plugin</h2>
-
 <div class="card">
   <div class="step">
     <div class="step-num">7</div>
     <div class="step-body">
-      <h3>This is a second, separate thing — and it is easy to miss</h3>
-      <p>Steps B1–B3 set up the <strong>tracker CLI</strong>, which handles git. Your Claude Code
-         <em>effort</em> is reported by a different piece: the <strong>edge8-telemetry plugin</strong>.
-         They are independent, and <strong>one working tells you nothing about the other</strong> —
-         <code>tracker status</code> can be perfectly green while none of your sessions are counted.</p>
-      <p>Paste the whole block; every line is safe to re-run:</p>
-      <pre><code>claude plugin marketplace add talentedgeai/edge8-telemetry
-claude plugin marketplace update edge8
-claude plugin update edge8-telemetry@edge8
-claude plugin install edge8-telemetry@edge8</code></pre>
-      <p>Then <strong>restart Claude Code</strong> — an update does not apply to a session that is
-         already running. Confirm the version:</p>
-      <pre><code>claude plugin list | grep -A1 edge8-telemetry</code></pre>
-      <p class="expect">✔ <strong>2.0.1 or later.</strong> The version prints on the line <em>below</em> the
-         plugin name. A red <code>✘ ... not found</code> from the <code>update</code> line is expected on a
-         machine that never had the plugin — the <code>install</code> on the next line is the one that counts.</p>
-      <div class="warn-box">🪟 <strong>On Windows, 2.0.1 is mandatory — and the symptom of 2.0.0 is that
-      there is no symptom.</strong> It captured your sessions into a queue that could never be delivered,
-      while reporting itself perfectly healthy. Nothing queued is lost: updating delivers the whole
-      backlog on the first run. macOS and Linux were unaffected.</div>
-      <p>Your <code>e8k_</code> key does double duty here — the same key that mints your git tokens also
-         authenticates your telemetry. There is no second credential to ask for.</p>
+      <h3>One more thing setup asked you</h3>
+      <p>During <code>tracker setup</code> you were asked whether to also report your
+         <strong>Claude Code session effort</strong>. If you said yes, it installed the plugin for you and
+         there is nothing else to do — just <strong>restart Claude Code</strong>, because a plugin update
+         never applies to a session that is already running.</p>
+      <p>Said no, or missed the question? Run this whenever you like:</p>
+      <pre><code>tracker setup --telemetry</code></pre>
+      <p class="expect">✔ <code>tracker status</code> ends with an <code>effort</code> line reading
+         <code>Claude Code session telemetry is ON</code>.</p>
+      <div class="warn-box">⚠️ These are <strong>two independent halves</strong>. Git access can be perfectly
+      healthy while none of your sessions are counted — that is why <code>tracker status</code> now prints a
+      line for each. Telemetry never affects git: if it fails, your git access still works.</div>
     </div>
   </div>
 </div>
 
-<div class="card">
-  <div class="step">
-    <div class="step-num">8</div>
-    <div class="step-body">
-      <h3>Check your sessions are actually arriving</h3>
-      <p>Inside Claude Code, run:</p>
-      <pre><code>/edge8-telemetry</code></pre>
-      <p class="expect">✔ Consent granted · a delivery key · this repo registered · and — the line that
-         actually proves delivery — a non-zero <strong>"sessions stored"</strong> from the tracker.</p>
-      <div class="warn-box">⚠️ <strong>An outbox count that never falls means capture is fine and delivery
-      is not.</strong> "N sessions awaiting delivery" on its own is not success. If it does not drop to 0
-      after you finish a session, tell an admin rather than assuming it will sort itself out.</div>
-    </div>
-  </div>
-</div>
-
-<hr class="divider">
 
 <h2>🔄 Upgrading to a new tracker version</h2>
 <div class="card">
@@ -461,6 +432,9 @@ npm i -g ./tracker.tgz
 tracker setup</code></pre>
   <p class="expect">✔ <code>tracker setup</code> with no key prints <code>setup complete ✔ (verified: …)</code> — it re-used the key saved on your machine.</p>
   <p>Then confirm with <code>tracker status</code> — all green means the upgrade took.</p>
+  <p>Upgrading from a tracker older than <strong>0.4.0</strong>? That <code>tracker setup</code> will
+     ask you the effort-telemetry question once, because your machine has never answered it. Answer it
+     and you're done; there is no separate plugin install any more.</p>
   <div class="warn-box">⚠️ <strong>Installing the new version alone is not enough.</strong>
      <code>npm i -g</code> only replaces the <code>tracker</code> command — the plumbing that git
      actually uses is refreshed only when <code>tracker setup</code> runs. Always run it after an
@@ -473,9 +447,11 @@ tracker setup</code></pre>
     <tr><th>What you see</th><th>What it means &amp; the fix</th></tr>
     <tr>
       <td><strong>Anything at all — start here</strong></td>
-      <td>Run <code>tracker status</code>. It prints four lines (helper wired · node · last
-          activity · server + key) and every <code>✘</code> line includes its own fix. Green
-          across the board = you're being counted; nothing else to debug.</td>
+      <td>Run <code>tracker status</code>. It prints five lines (helper wired · node · last
+          activity · server + key · effort telemetry) and every <code>✘</code> line includes
+          its own fix. Green across the board = you're being counted; nothing else to debug.
+          The <code>effort</code> line is information only — it never fails the check, because
+          saying no to telemetry is a valid answer.</td>
     </tr>
     <tr>
       <td>You recently ran <code>gh auth login</code> or <code>gh auth setup-git</code></td>
@@ -533,7 +509,7 @@ tracker setup</code></pre>
 
 <h2>❓ Quick answers</h2>
 <div class="card">
-  <p><strong>Am I being counted right now?</strong> Run <code>tracker status</code> — four green lines means yes. It's safe to run as often as you like.</p>
+  <p><strong>Am I being counted right now?</strong> Run <code>tracker status</code> — green lines mean yes. It's safe to run as often as you like.</p>
   <p><strong>Does it spy on me?</strong> No. It only logs git activity (downloads/uploads of code) on Edge8-tracked repositories. No screen recording, no keystrokes, no personal files, and your personal projects are untouched.</p>
   <p><strong>Do I need a GitHub account?</strong> No. Your <code>e8k_</code> key grants access to Edge8 repositories all by itself.</p>
   <p><strong>Will it slow anything down?</strong> No — access tokens are cached for 60 minutes and refreshed automatically in the background.</p>
