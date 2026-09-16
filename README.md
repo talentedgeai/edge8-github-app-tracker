@@ -124,21 +124,29 @@ gh release download --repo talentedgeai/edge8-github-app-tracker --pattern "*.tg
 # 2. Install globally.
 npm i -g ./tracker.tgz
 
-# 3. Set up (ask an admin for your key).
+# 3. Set up (ask an admin for your key). Wires git AND offers to turn on effort telemetry.
 tracker setup --key e8k_xxxxxxxx_yyyy --server https://edge8-github-app-tracker-kappa.vercel.app
 
 # 4. Confirm you're being counted (run this any time you're unsure).
 tracker status
 ```
 
+Step 3 asks one yes/no question — whether to also report your Claude Code session effort —
+and installs the `edge8-telemetry` plugin for you if you say yes. Answer it up front with
+`--telemetry` or `--no-telemetry` (useful in a script, where an unanswerable prompt counts
+as "no"). That question is the whole of what used to be a second, separate setup, and the
+half that people kept missing.
+
 After setup, every `git clone/pull/push` on a **tracked** repo authenticates automatically
 with a fresh 60-minute token (auto-refreshed — git calls the helper on each operation; cache
 hits send a `/beacon` heartbeat). Untracked/personal repos fall through to your normal
 credential manager. Undo with `tracker uninstall` (other credential helpers are preserved).
 
-`tracker status` prints four lines — helper wired (in the *effective* chain git walks) ·
-which node will run it · last token mint · server reachable + key accepted — and exits 0
-only when the machine is verifiably being counted. Every ✘ line includes its fix.
+`tracker status` prints five lines — helper wired (in the *effective* chain git walks) ·
+which node will run it · last token mint · server reachable + key accepted · effort
+telemetry — and exits 0 only when the machine is verifiably being counted for git. Every ✘
+line includes its fix. The `effort` line is reported but does **not** decide the exit code:
+declining telemetry is a legitimate answer, so it must not make `tracker status` fail.
 
 Two things worth knowing:
 - **`gh auth login` / `gh auth setup-git` silently remove the tracker** (gh rewrites git's
@@ -156,7 +164,8 @@ Two things worth knowing:
 ## For engineers: get on the current version
 
 Two separate things run on your machine, and **both** need to be current. They are
-independent — having one working tells you nothing about the other.
+independent at run time — having one working tells you nothing about the other — but since
+CLI 0.4.0 a single `tracker setup` installs and checks both.
 
 | | what it does | fires on |
 |---|---|---|
@@ -165,6 +174,24 @@ independent — having one working tells you nothing about the other.
 
 ### 1. The telemetry plugin — **2.0.1 or later**
 
+Since tracker CLI 0.4.0 this is one command, and it is the same one that wires git:
+
+```bash
+tracker setup --telemetry
+```
+
+On a machine that is already set up it needs no other flags — it reuses the stored
+key/server, adds the marketplace, installs the plugin at its current version, and records
+your consent. `--telemetry` answers the consent question up front so the command runs
+unattended; plain `tracker setup` asks it instead.
+
+Then **restart Claude Code** — a plugin update does not affect a session already running.
+Confirm with `tracker status` (the `effort` line) or `claude plugin list | grep -A1
+edge8-telemetry`, where the version prints on the line *below* the name.
+
+<details>
+<summary>The manual equivalent, if <code>tracker setup</code> is unavailable</summary>
+
 ```bash
 claude plugin marketplace add talentedgeai/edge8-telemetry
 claude plugin marketplace update edge8
@@ -172,10 +199,11 @@ claude plugin update edge8-telemetry@edge8
 claude plugin install edge8-telemetry@edge8
 ```
 
-Then **restart Claude Code** — `update` does not affect a session already running. Confirm
-with `claude plugin list | grep -A1 edge8-telemetry`; the version prints on the line *below*
-the name. A red `✘ ... not found` from the `update` line is expected on a machine that never
-had the plugin; the `install` on the next line is the one that lands it.
+Then write `granted` (exactly that word, no trailing text) to
+`~/.claude/.il-telemetry/consent` — the plugin reads that file and nothing else. A red
+`✘ ... not found` from the `update` line is expected on a machine that never had the
+plugin; the `install` on the next line is the one that lands it.
+</details>
 
 > 🪟 **On Windows, 2.0.1 is mandatory, and the symptom of 2.0.0 is that there is no symptom.**
 > The delivery module imported a Unix-only module, so it died at import — sessions were

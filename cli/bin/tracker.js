@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // edge8-tracker CLI. Three commands:
 //   tracker setup [--key <e8k_...>] [--server <url>]   one-time per machine (re-run any time:
-//                                                      idempotent; no flags needed once configured)
+//       [--telemetry | --no-telemetry]                 idempotent; no flags needed once configured)
 //   tracker status                                     is this machine being counted? (exit 0 = yes)
 //   tracker uninstall                                  remove the git wiring, keep the config
 //
@@ -30,6 +30,7 @@ import {
   nulsOf,
   parseZRecords,
 } from "../src/wiring.mjs";
+import { setUpTelemetry, consentState } from "../src/telemetry.mjs";
 
 const DIR = path.join(os.homedir(), ".edge8");
 const CONFIG = path.join(DIR, "config.json");
@@ -310,6 +311,23 @@ async function setup() {
   console.log("\nEvery git pull/push on tracked github.com repos now authenticates");
   console.log("through the tracker (60-min tokens, auto-refreshed). Personal repos");
   console.log("fall through to your existing credential manager.");
+
+  // --- the other half: Claude Code session effort ---
+  // Deliberately after the git wiring is verified, and deliberately unable to
+  // fail it: a machine with no Claude Code still leaves here with working git.
+  const tel = setUpTelemetry({
+    flagYes: process.argv.includes("--telemetry"),
+    flagNo: process.argv.includes("--no-telemetry"),
+  });
+  if (tel.enabled) {
+    console.log("\ntracker: effort telemetry enabled ✔");
+    console.log("  Restart Claude Code — a plugin update does not apply to a session");
+    console.log("  that is already running. Then check with /edge8-telemetry.");
+  } else {
+    console.log(`\ntracker: effort telemetry NOT enabled — ${tel.note}`);
+    console.log("  Git access above is unaffected; only session effort is uncounted.");
+  }
+
   console.log("\nCheck any time with: tracker status");
   console.log("If you ever run `gh auth login` / `gh auth setup-git`, re-run `tracker setup` after it.");
 }
@@ -497,6 +515,19 @@ async function status() {
     }
   }
 
+  // --- the other half, reported but not judged ---
+  // Declining session telemetry is a legitimate choice and git access is what
+  // this command certifies, so it stays out of the pass/fail verdict. It is
+  // still printed: "status all green, zero sessions counted" is precisely the
+  // silent gap this line exists to close.
+  const consent = consentState();
+  if (consent === "granted") line("effort", "✔", "Claude Code session telemetry is ON");
+  else
+    line("effort", "–", `Claude Code session telemetry is OFF (${consent === "denied" ? "declined" : "never set up"})`, [
+      "your git access is unaffected; only session effort goes uncounted",
+      "enable it with: tracker setup --telemetry",
+    ]);
+
   console.log(out.join("\n"));
   const pass = ok.wired && ok.node && ok.server && ok.key;
   console.log(pass ? "\ntracker: all checks passed — this machine is being counted ✔" : "\ntracker: NOT healthy — see ✘ above");
@@ -564,9 +595,15 @@ installs the git credential helper (node-resolving shim), and wires git for
 github.com — preserving any other credential helpers you already use.
 Re-running setup is safe and needs no flags once configured.
 
-status answers, in four lines: is the helper wired (in the chain git actually
-walks), which node will run it, when a token was last minted, and whether the
-server is reachable and your key accepted. Exit 0 = this machine is counted.
+It then offers to turn on Claude Code session telemetry (the other half of
+being counted: the same key, a separate plugin). You are asked; --telemetry
+and --no-telemetry answer without the prompt, and a non-interactive run is
+never opted in for you. Telemetry never blocks the git setup above.
+
+status answers, in five lines: is the helper wired (in the chain git actually
+walks), which node will run it, when a token was last minted, whether the
+server is reachable and your key accepted, and whether session telemetry is on.
+Exit 0 = git access is counted; the telemetry line is reported, not judged.
 Run it after \`gh auth login\`/\`gh auth setup-git\` — those rewrite git's
 credential config and silently remove the tracker (fix: re-run tracker setup).`);
   process.exitCode = cmd ? 1 : 0;
