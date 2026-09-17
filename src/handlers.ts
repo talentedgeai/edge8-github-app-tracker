@@ -89,11 +89,29 @@ async function findActiveKey(presented: string): Promise<any | null> {
   return secretEqual(hash, rec.key_hash ?? "") ? rec : null;
 }
 
+/**
+ * What the request actually achieved. Recorded so the event stream can be read
+ * as coverage: an access event on its own only proves the helper ASKED, and for
+ * an owner with no installation it will keep asking forever. See migration 0005.
+ *
+ * `pending` is the state between the row landing and GitHub answering. It
+ * survives a crash or a function timeout mid-mint, and says the honest thing —
+ * we asked, we never learned the result — instead of implying either one.
+ */
+export type AccessOutcome =
+  | "pending"
+  | "minted"
+  | "no_installation"
+  | "mint_failed"
+  | "cache_hit";
+
+/** Insert the access event and return its id, so the outcome can be settled later. */
 async function logAccessEvent(
   keyId: string,
   body: any,
   kind: "token" | "beacon",
-): Promise<void> {
+  outcome: AccessOutcome,
+): Promise<number | null> {
   // The token event is the clock-start: stamp it with SERVER time and never trust a
   // client-supplied observed_at (which could backdate the span and inflate billing).
   // Only the beacon (a cache-hit heartbeat) may carry the client's observed_at.
@@ -101,16 +119,36 @@ async function logAccessEvent(
     kind === "beacon"
       ? (body?.observed_at ?? new Date().toISOString())
       : new Date().toISOString();
-  await db.run(
-    `INSERT INTO git_access_events (key_id, repo_path, verb, kind, observed_at, raw)
-     VALUES (?,?,?,?,?,?)`,
+  const row = await db.get(
+    `INSERT INTO git_access_events (key_id, repo_path, verb, kind, observed_at, outcome, raw)
+     VALUES (?,?,?,?,?,?,?) RETURNING id`,
     keyId,
     body?.path ?? null,
     body?.verb ?? "unknown",
     kind,
     observedAt,
+    outcome,
     JSON.stringify(body ?? {}),
   );
+  return row?.id ?? null;
+}
+
+/**
+ * Settle a `pending` event once the mint has resolved.
+ *
+ * Best-effort on purpose: the row already carries the clock-start, which is what
+ * billing needs. Failing to label it must never cost the engineer their token.
+ */
+async function recordOutcome(
+  id: number | null,
+  outcome: AccessOutcome,
+): Promise<void> {
+  if (id === null) return;
+  try {
+    await db.run(`UPDATE git_access_events SET outcome = ? WHERE id = ?`, outcome, id);
+  } catch {
+    /* the event itself is safe; it just stays 'pending' */
+  }
 }
 
 // --- POST /app-token — mint a real 60-minute installation token ---
@@ -122,23 +160,35 @@ export async function handleAppToken(
   if (!rec) return { status: 401, json: { error: "bad key" } };
 
   // LOG THE ACCESS EVENT FIRST — this is the clock-start capture, before we mint.
-  await logAccessEvent(rec.key_id, body, "token");
+  // It lands as `pending` and is settled below: the billing signal is never at the
+  // mercy of a slow or hanging GitHub call, and the outcome is added once known.
+  const eventId = await logAccessEvent(rec.key_id, body, "token", "pending");
 
-  const inst = await installationForRepoPath(body?.path ?? "");
+  let inst: any;
+  try {
+    inst = await installationForRepoPath(body?.path ?? "");
+  } catch (err) {
+    await recordOutcome(eventId, "mint_failed");
+    throw err;
+  }
   if (!inst) {
     // 404 tells the credential helper "not a tracked repo" -> it stays silent and
-    // git falls through to the engineer's next credential helper.
+    // git falls through to the engineer's next credential helper. Invisible to the
+    // engineer by design, which is why the outcome has to be visible to us.
+    await recordOutcome(eventId, "no_installation");
     return { status: 404, json: { error: "no installation for repo" } };
   }
   try {
     const { token, expiresAt } = await mintInstallationToken(
       Number(inst.installation_id),
     );
+    await recordOutcome(eventId, "minted");
     return {
       status: 200,
       json: { username: "x-access-token", token, expires_at: expiresAt },
     };
   } catch (err: any) {
+    await recordOutcome(eventId, "mint_failed");
     return {
       status: 503,
       json: { error: "mint failed", detail: String(err?.message ?? err) },
@@ -152,7 +202,9 @@ export async function handleBeacon(
   body: any,
 ): Promise<HandlerResult> {
   const rec = await findActiveKey(presented);
-  if (rec) await logAccessEvent(rec.key_id, body, "beacon");
+  // A beacon only happens on a cache hit, which means a token was minted earlier
+  // and is still being used — so the work is real even though nothing was minted now.
+  if (rec) await logAccessEvent(rec.key_id, body, "beacon", "cache_hit");
   return { status: 204 };
 }
 

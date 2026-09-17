@@ -120,6 +120,55 @@ test("client push: User push, not a merge -> no span (push_events row remains)",
   assert.equal(Number(n), 1); // recorded
 });
 
+// §5.1 sender gate — only OUR bot mints. The old test was `sender_type === "Bot"`,
+// which billed every other bot's pushes to whichever human had touched the repo.
+test("foreign bot: github-actions[bot] push -> no span, even with a live clock", async () => {
+  await H.beacon(H.T("09:00")); // a human WAS working here recently
+  await H.push("d1", H.T("11:24"), { sender_login: "github-actions[bot]" });
+  await mintForDelivery("d1");
+
+  // Before the fix this minted 2.4 tokens against dev@local for a CI push.
+  assert.equal((await H.spans()).length, 0);
+  const n = (await H.db.get(`SELECT COUNT(*) AS c FROM push_events`)).c;
+  assert.equal(Number(n), 1); // still recorded, just not billed
+});
+
+test("our bot mints, and the comparison is case-insensitive", async () => {
+  await H.beacon(H.T("09:00"));
+  await H.push("d1", H.T("11:24"), { sender_login: "Edge8-GitHub-App-Tracker[bot]" });
+  await mintForDelivery("d1");
+  assert.equal((await H.spans()).length, 1);
+});
+
+test("a User account named like our bot cannot impersonate it", async () => {
+  await H.beacon(H.T("09:00"));
+  await H.push("d1", H.T("11:24"), {
+    sender_login: "edge8-github-app-tracker[bot]",
+    sender_type: "User", // login is attacker-chosen; the type is GitHub's
+  });
+  await mintForDelivery("d1");
+  assert.equal((await H.spans()).length, 0);
+});
+
+test("GITHUB_APP_SLUG retargets the gate, so a second App is not hard-coded out", async () => {
+  const prev = process.env.GITHUB_APP_SLUG;
+  process.env.GITHUB_APP_SLUG = "edge8-tracker-staging";
+  try {
+    await H.beacon(H.T("09:00"));
+    await H.push("d1", H.T("11:24"), { sender_login: "edge8-tracker-staging[bot]" });
+    await mintForDelivery("d1");
+    assert.equal((await H.spans()).length, 1);
+
+    // ...and the production bot no longer mints on a staging deployment.
+    await H.push("d2", H.T("12:00"), { sender_login: "edge8-github-app-tracker[bot]" });
+    await mintForDelivery("d2");
+    assert.equal((await H.spans()).length, 1);
+  } finally {
+    if (prev === undefined) delete process.env.GITHUB_APP_SLUG;
+    else process.env.GITHUB_APP_SLUG = prev;
+  }
+});
+
 // §9 idempotency — remint over the whole history converges to identical rows.
 test("idempotency: remintAll twice -> identical rows; matches the live pipeline", async () => {
   await H.beacon(H.T("09:00"));

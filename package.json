@@ -17,8 +17,8 @@
     "inspect": "tsx src/inspect.ts",
     "issue-key": "tsx scripts/issue-key.ts",
     "verify-db": "tsx scripts/verify-db.ts",
-    "test": "tsx --test tests/mint.test.ts tests/pairing.test.ts tests/classify.test.ts tests/parse.test.ts tests/admin-keys.test.ts",
-    "test:serial": "tsx --test --test-concurrency=1 tests/mint.test.ts tests/pairing.test.ts tests/classify.test.ts tests/parse.test.ts tests/admin-keys.test.ts",
+    "test": "tsx --test tests/mint.test.ts tests/pairing.test.ts tests/classify.test.ts tests/parse.test.ts tests/admin-keys.test.ts tests/access-events.test.ts",
+    "test:serial": "tsx --test --test-concurrency=1 tests/mint.test.ts tests/pairing.test.ts tests/classify.test.ts tests/parse.test.ts tests/admin-keys.test.ts tests/access-events.test.ts",
     "mint-admin-key": "tsx scripts/mint-admin-key.ts"
   },
   "dependencies": {

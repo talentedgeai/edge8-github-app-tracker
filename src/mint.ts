@@ -15,10 +15,39 @@ type PushRow = {
   repo_full: string;
   branch: string;
   head_sha: string | null;
+  sender_login: string | null;
   sender_type: string | null;
   author_emails: string | null;
   pushed_at: string; // H1: the webhook received_at, set by parse.ts
 };
+
+// The login GitHub stamps on a push authenticated with OUR installation token.
+// Overridable because the slug is a property of the App, not of this code: a
+// second App (a staging one, or a rename) would push under a different login.
+const trackerBotLogin = (): string =>
+  `${process.env.GITHUB_APP_SLUG ?? "edge8-github-app-tracker"}[bot]`.toLowerCase();
+
+/**
+ * Was this push authenticated with the tracker's own installation token?
+ *
+ * §5.1 mints only for pushes that went through the credential helper, because
+ * only those can be traced back to an engineer key — that is the whole basis of
+ * attribution. The test used to be `sender_type === "Bot"`, which is true of
+ * EVERY bot: `github-actions[bot]` pushes (CI tags, auto-fix commits, release
+ * bots) sailed through and were billed to whichever human had touched the repo
+ * in the last 24h. Nobody did that work. So the sender must be our App's bot
+ * specifically, and `sender_type` is kept as a second condition so a human
+ * account that happens to be named like a bot cannot impersonate one.
+ */
+export function isTrackerBotPush(push: {
+  sender_login: string | null;
+  sender_type: string | null;
+}): boolean {
+  return (
+    push.sender_type === "Bot" &&
+    (push.sender_login ?? "").toLowerCase() === trackerBotLogin()
+  );
+}
 
 const normRepo = (p: string | null): string =>
   (p ?? "").toLowerCase().replace(/\.git$/, "").replace(/^\/+|\/+$/g, "");
@@ -103,7 +132,7 @@ function disambiguate(members: string[], push: PushRow): string | null {
   return null;
 }
 
-// §5.1 — whose push is this? (caller has already established sender_type === 'Bot')
+// §5.1 — whose push is this? (caller has already established isTrackerBotPush)
 // The 24h TTL belongs to the CLOCK (priorBoundary), not to identity: the DoD requires
 // a stale-beacon / no-beacon push to mint default_1 WITH no_clock_start, which needs a
 // member. So when the 24h window is empty we fall back to older access events for the
@@ -246,8 +275,10 @@ export async function mintForDelivery(deliveryId: string): Promise<void> {
     await db.run(`DELETE FROM work_spans WHERE delivery_id = ?`, deliveryId);
     return;
   }
-  // §5.1 — a User push is a client-side engineer: recorded (push_events), never minted.
-  if (push.sender_type !== "Bot") return;
+  // §5.1 — only a push carrying OUR installation token mints. A User push is a
+  // client-side engineer pushing with their own credentials, and another App's
+  // bot is not work at all; both are recorded (push_events) and never minted.
+  if (!isTrackerBotPush(push)) return;
 
   const member = await attribute(push, pushMs);
   const flags: string[] = [];
