@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS git_access_events (
   kind        TEXT NOT NULL,
   observed_at TEXT NOT NULL,
   received_at TEXT NOT NULL DEFAULT (datetime('now')),
+  -- minted | no_installation | mint_failed | cache_hit; see migration 0005.
+  outcome     TEXT,
   raw         TEXT
 );
 
@@ -162,6 +164,7 @@ export function createSqlite(dbPath: string): Dbx {
       .map((r: any) => r.name);
     if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
   };
+  addColumnIfMissing("git_access_events", "outcome", "outcome TEXT");
   addColumnIfMissing("pull_requests", "author_member", "author_member TEXT");
   addColumnIfMissing("pull_requests", "orphaned", "orphaned INTEGER NOT NULL DEFAULT 0");
   addColumnIfMissing("pull_requests", "merge_commit_sha", "merge_commit_sha TEXT");

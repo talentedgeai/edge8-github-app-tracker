@@ -88,6 +88,7 @@ export async function push(
     repo_full: string;
     branch: string;
     head_sha: string;
+    sender_login: string;
     sender_type: string;
     forced: number;
     author_emails: string[];
@@ -109,7 +110,8 @@ export async function push(
     "before",
     o.head_sha ?? `sha-${id}`,
     o.forced ?? 0,
-    "someone",
+    // Default to the tracker's own bot: the only sender that mints (§5.1).
+    o.sender_login ?? "edge8-github-app-tracker[bot]",
     o.sender_type ?? "Bot",
     1,
     0,
